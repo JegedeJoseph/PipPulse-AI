@@ -24,7 +24,7 @@ numpy==1.26.3
 pandas==2.2.0
 
 # Text Processing
-nltk==3.8.1
+nltk==3.9.4
 spacy==3.7.2
 langdetect==1.0.9
 textblob==0.17.1
