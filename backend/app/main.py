@@ -12,8 +12,7 @@ import logging
 from datetime import datetime
 
 from app.config import get_settings
-from app.database import init_databases
-from app.api import signals, news, admin, health, websocket
+from app.api import signals, news, admin, health, websocket, backtesting
 
 # Configure logging
 logging.basicConfig(
@@ -31,13 +30,23 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     # Startup
     logger.info("Starting PipPulse AI backend...")
-    await init_databases()
-    logger.info("Databases initialized")
+    try:
+        from app.database import connect_all_databases
+        await connect_all_databases()
+        logger.info("Databases initialized")
+    except Exception as e:
+        logger.error(f"Failed to initialize databases: {e}")
+        raise
 
     yield
 
     # Shutdown
     logger.info("Shutting down PipPulse AI backend...")
+    try:
+        from app.database import disconnect_all_databases
+        await disconnect_all_databases()
+    except Exception as e:
+        logger.error(f"Error during shutdown: {e}")
 
 
 # Create FastAPI app
@@ -64,6 +73,7 @@ app.include_router(health.router, prefix="/api/health", tags=["Health"])
 app.include_router(signals.router, prefix="/api/signals", tags=["Signals"])
 app.include_router(news.router, prefix="/api/news", tags=["News"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
+app.include_router(backtesting.router, prefix="/api/backtesting", tags=["Backtesting"])
 app.include_router(websocket.router, prefix="/api/ws", tags=["WebSocket"])
 
 
