@@ -44,6 +44,7 @@ class Settings(BaseSettings):
 
     # API Keys
     newsapi_key: Optional[str] = Field(default=None, env="NEWSAPI_KEY")
+    alphavantage_api_key: Optional[str] = Field(default=None, env="ALPHAVANTAGE_API_KEY")
 
     twitter_bearer_token: Optional[str] = Field(default=None, env="TWITTER_BEARER_TOKEN")
     twitter_api_key: Optional[str] = Field(default=None, env="TWITTER_API_KEY")

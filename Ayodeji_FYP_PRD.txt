@@ -1,0 +1,210 @@
+PRODUCT REQUIREMENTS DOCUMENT
+Real-Time AI Sentiment Analysis Engine for Forex News Trading
+
+AuthorOluwole AyodejiStudent IDAUL/CMP/22/073SupervisorDr. Mustapha AbiodunDepartmentComputing, Faculty of ScienceProgrammeBSc Computer Science (Final Year Project)Document TypeProduct Requirements Document (PRD) - Implementation FocusVersion1.0DateApril 2026StatusReady for Implementation
+
+1. EXECUTIVE SUMMARY
+This Product Requirements Document (PRD) defines the full implementation plan for a Real-Time AI Sentiment Analysis Engine that converts unstructured Forex news and social media content into actionable trading signals. The system addresses a clear gap: traditional technical indicators respond too slowly to sudden, news-driven price movements, leaving retail traders without the tools that institutional participants already enjoy.
+
+The engine will ingest live data from News APIs, Twitter/X, Reddit, and Telegram, clean and classify each item using FinBERT (a financial-domain BERT model), aggregate sentiment across configurable time windows, and surface BUY/SELL/HOLD recommendations via a responsive React.js dashboard - all within a 5-second end-to-end latency budget. The entire system will be containerised with Docker and validated through a backtesting module that measures win rate, Sharpe ratio, and maximum drawdown against historical Forex price data.
+
+
+2. PROBLEM STATEMENT & MOTIVATION
+2.1 Problem Statement
+The Forex market is driven significantly by real-time geopolitical and economic news. Despite this, most retail traders still depend on lagging technical indicators (Moving Averages, RSI, etc.) that cannot reflect sudden sentiment-driven shifts. The core problems are:
+• Slow signal generation - manual analysis and legacy automated systems cannot convert news to trade ideas fast enough to capture short-lived opportunities.
+• Poor linguistic intelligence - existing sentiment models misinterpret financial jargon (e.g., 'hawkish', 'dovish', 'tapering') and fail on domain-specific ambiguity.
+• Fragmented data - no current open solution integrates news APIs, Twitter, Reddit, and Telegram into a single coherent signal pipeline.
+• Rapid news decay - most systems ignore that a news item's market impact collapses within minutes, requiring time-decay weighting.
+
+2.2 Motivation
+Recent advances in NLP - specifically transformer-based models fine-tuned on financial corpora - make it tractable for a final-year project to close this gap at prototype level. The goal is to democratise real-time, AI-powered market intelligence for retail traders, giving them access to the same class of news-driven signals that institutional high-frequency desks use internally.
+
+
+3. PROJECT OBJECTIVES
+The four formal objectives from the project proposal, translated into implementation targets:
+
+#ObjectiveKey Implementation TargetO1Real-time news aggregation infrastructureMulti-source collectors (News API, Twitter/X, Reddit, Telegram) with Redis Streams; sub-5-second latency, deduplication, currency-pair taggingO2FinBERT sentiment engine + signal generator=75% accuracy on financial benchmarks; BUY/SELL/HOLD signals with confidence scores and explainable evidenceO3Responsive web applicationReact.js frontend + FastAPI backend; WebSocket live updates; multi-pair monitoring dashboardO4Backtesting engine + full integrationSignal validation vs. historical price data; Docker deployment; PostgreSQL, MongoDB, Redis databases
+
+4. SCOPE
+4.1 In Scope
+• Real-time data collection from News API, Twitter/X API v2, Reddit (PRAW), Telegram (Telethon)
+• Text preprocessing pipeline: normalisation, noise removal, language detection, currency-pair extraction
+• FinBERT-based sentiment classification (Positive / Negative / Neutral) with confidence scoring
+• Temporal aggregation (15-min, 1-hour, 4-hour windows) with time-decay weighting
+• Source credibility weighting matrix
+• Trading signal generation: BUY / SELL / HOLD per major currency pair (EUR/USD, GBP/USD, USD/JPY, etc.)
+• Explainable AI layer: each signal accompanied by supporting evidence and reasoning
+• Web dashboard: real-time signals, sentiment trend charts, integrated Forex news blog
+• Backtesting engine: win rate, risk-reward ratio, Sharpe ratio, maximum drawdown
+• Docker containerisation of all components
+• PostgreSQL (relational), MongoDB (documents), Redis (streaming/cache), InfluxDB (time-series) databases
+
+4.2 Out of Scope
+• Live trade execution or brokerage API integration
+• Advanced financial risk management (position sizing, stop-loss automation)
+• Non-English language support (multilingual translation)
+• Mobile native application (iOS/Android)
+• Production-grade security hardening and financial regulatory compliance
+
+
+5. SYSTEM ARCHITECTURE
+5.1 High-Level Architecture
+The system is organised as five loosely coupled layers communicating asynchronously via a message queue, following a microservices philosophy for independent scaling and maintainability.
+
+LayerComponentsResponsibility1 - Data CollectionNews API Collector, Tweepy Stream, PRAW Scraper, Telethon MonitorFetch raw text, normalise to common schema, publish to Redis Streams2 - Data ProcessingText Cleaner, Language Detector, Currency Pair Extractor, DeduplicatorTransform raw items into clean, analysis-ready records3 - Sentiment EngineFinBERT Inference Service (REST), Batch Processor, Confidence Scorer, Pair-Aware MapperClassify each item; return label + confidence score (0-1)4 - Signal GenerationTemporal Aggregator, Credibility Weighter, Threshold Evaluator, Explainability BuilderProduce BUY/SELL/HOLD recommendations with strength (0-100) and evidence5 - Web ApplicationFastAPI Backend (REST + WebSocket), React.js Frontend, Recharts Visualiser, News BlogPresent signals, sentiment trends and news to end users in real time
+5.2 Data Flow
+Source ? Collector ? Redis Stream ? Preprocessing Pipeline ? MongoDB (raw store) ? FinBERT Service ? Sentiment Store (MongoDB) ? Signal Engine ? InfluxDB (signal history) + PostgreSQL (relational metadata) ? FastAPI ? WebSocket ? React Dashboard
+
+5.3 FinBERT Model Architecture
+FinBERT is a BERT-derived transformer (12 layers, 768 hidden units, 12 attention heads) pre-trained on a large financial corpus including news, analyst reports and earnings transcripts. It produces a three-class output (Positive, Negative, Neutral) with a softmax confidence distribution. The model is deployed as a containerised REST microservice, using batch inference for throughput and response caching for duplicate items.
+
+5.4 Signal Generation Formula
+Temporal aggregation uses exponential time-decay:
+Weighted_Sentiment = S (sentiment_i × e^(-??t_i))
+Signal strength is then computed as:
+Signal_Strength = (Avg_Sentiment × Consensus_Factor × Volume_Factor) × 100
+where ? is the decay constant, ?t_i is the age of news item i, Consensus_Factor (0-1) measures source agreement, and Volume_Factor reflects item count. Threshold values for BUY/SELL/HOLD are calibrated via backtesting.
+
+
+6. FUNCTIONAL REQUIREMENTS
+FR-01: Multi-Source Data Collection
+The system shall continuously collect real-time Forex-related content from News APIs, Twitter/X (Tweepy, API v2 streaming), Reddit (PRAW - r/Forex, r/CurrencyTrading), and Telegram (Telethon webhook-based monitoring). Each collector shall implement platform-specific authentication, rate-limit adherence, and error recovery with automatic reconnection.
+
+FR-02: Data Preprocessing Pipeline
+The pipeline shall: (a) normalise text (lowercase, expand abbreviations, strip non-semantic URLs/hashtags/mentions); (b) remove spam, bot-generated content and duplicate items across platforms; (c) detect and filter non-English content; (d) extract explicit and implicit currency pair references using NLP entity recognition; (e) tag each item with source, timestamp, engagement metrics, and detected currency pairs.
+
+FR-03: FinBERT Sentiment Classification
+The sentiment service shall classify each preprocessed item as Positive, Negative, or Neutral with a confidence score (0-1). It shall perform pair-aware sentiment mapping so that, for example, positive USD news generates positive USD sentiment but negative EUR sentiment in EUR/USD context. Low-confidence items (below configurable threshold) shall be flagged and down-weighted in aggregation.
+
+FR-04: Temporal Aggregation & Signal Generation
+The signal engine shall aggregate sentiment across 15-minute, 1-hour, and 4-hour sliding windows using exponential time-decay weighting. Source credibility weights shall be applied. Output signals shall specify: currency pair, direction (BUY/SELL/HOLD), signal strength (0-100), confidence score (0-100), reference price level, time window, supporting headlines, and reasoning summary.
+
+FR-05: Web Dashboard
+A React.js frontend shall display: live trading signals with strength indicators; sentiment trend charts (Recharts time-series); per-pair sentiment breakdown; integrated Forex news blog with AI-annotated sentiment labels; WebSocket-based live updates without manual refresh. The interface shall support simultaneous monitoring of multiple currency pairs.
+
+FR-06: Backtesting Engine
+The backtesting module shall replay historical sentiment signals against historical Forex OHLCV price data and compute: win rate (%), average risk-reward ratio, Sharpe ratio, maximum drawdown, confidence calibration curves, and signal latency distribution. Reports shall be exportable and viewable within the dashboard.
+
+FR-07: Administrative Interface
+An admin panel shall allow configuration of: signal generation thresholds per currency pair; source credibility weights; time-window parameters; FinBERT confidence cut-off; API key management for external data sources.
+
+FR-08: Data Persistence & Reporting
+All raw news content and metadata shall be stored in MongoDB. Time-series signal history and price data shall be stored in InfluxDB. Relational metadata (user config, backtesting run results) shall be stored in PostgreSQL. Redis shall serve as the stream queue and short-term sentiment cache. The system shall generate performance comparison reports on demand.
+
+
+7. NON-FUNCTIONAL REQUIREMENTS
+AttributeRequirementMetric / TargetPerformanceEnd-to-end signal latency from news publication to dashboard delivery= 5 secondsThroughputPeak news ingestion capacity without degradation1,000 items/minuteReliabilitySystem uptime during Forex market hours (24/5)= 95%AccuracyFinBERT sentiment classification on financial benchmarks= 75% F1-scoreScalabilityIndependent scaling of collector, inference, and web service containersHorizontal via Docker ComposeSecurityCredential storage, HTTPS, API token managementEnv-vars, HTTPS enforcedMaintainabilityModular microservice design; independent component updatesZero-downtime redeploy per serviceUsabilityMinimal trader learning curve; critical info prominently displayedValidated by supervisor/peer reviewComplianceRespect platform ToS for all APIs; align with GDPR for user dataAPI terms observed throughoutDocumentationAPI specs (OpenAPI), deployment guide, troubleshooting guideComplete before submission
+
+8. TECHNOLOGY STACK
+CategoryTechnologyRoleBackend LanguagePython 3.9+Data collection, preprocessing, sentiment inference, signal generationFrontend LanguageJavaScript ES6+ / React.jsInteractive dashboard, real-time UI, chartingNLP ModelFinBERT (Hugging Face Transformers)Financial sentiment classificationAPI FrameworkFastAPIREST endpoints, WebSocket support, OpenAPI docsData CollectionTweepy, PRAW, Telethon, RequestsTwitter, Reddit, Telegram, News API integrationStream ProcessingRedis Streams (or Apache Kafka)Asynchronous message passing between layersDocument DBMongoDBRaw news storage, flexible schemaTime-Series DBInfluxDBSignal history, Forex price dataRelational DBPostgreSQLConfig, backtesting results, relational metadataCacheRedisDuplicate detection, short-term sentiment cacheVisualisationRechartsSentiment trend charts, signal performance graphsStylingTailwindCSSResponsive UI designContainerisationDocker / Docker ComposeConsistent multi-service deploymentVersion ControlGit / GitHubSource management, CI/CD workflowsData ProcessingPandas, NumPyFeature engineering, backtesting calculations
+
+9. IMPLEMENTATION PLAN & MILESTONES
+Phase 1 - Environment Setup & Data Collection (Weeks 1-3)
+• Set up Git repository, Docker Compose multi-service skeleton, and CI pipeline
+• Configure development environment: Python virtual env, Node.js, database containers
+• Obtain and validate API keys: NewsAPI, Twitter Developer (API v2), Reddit app credentials, Telegram bot token
+• Build and test individual collectors: News API, Tweepy stream, PRAW scraper, Telethon monitor
+• Implement Redis Streams publisher/consumer for inter-service message passing
+• Validate end-to-end data flow: raw text from each source lands in MongoDB
+• Milestone: Live data from all 4 sources flowing into storage
+
+Phase 2 - Preprocessing Pipeline (Weeks 4-5)
+• Implement text normalisation module: URL stripping, lowercase, abbreviation expansion
+• Build spam/bot filter using engagement heuristics and pattern matching
+• Integrate language detection library; route non-English items to rejection queue
+• Develop currency pair NER: regex for standard notation (EUR/USD), dictionary for currency names and central bank references
+• Implement cross-platform deduplication using content hashing
+• Unit test each preprocessing step with labelled Forex text samples
+• Milestone: Clean, tagged, deduplicated records stored in MongoDB
+
+Phase 3 - Sentiment Engine (Weeks 6-8)
+• Load and validate pre-trained FinBERT model via Hugging Face Transformers
+• Build FastAPI inference service with batch endpoint and response caching
+• Implement pair-aware sentiment mapping layer (base/quote currency polarity adjustment)
+• Benchmark model accuracy on a labelled financial news dataset; record baseline F1
+• Containerise the inference service; load-test for throughput (target: 200+ items/sec with batching)
+• Integrate inference service into the preprocessing ? sentiment pipeline
+• Milestone: Each news item in MongoDB enriched with sentiment label and confidence score
+
+Phase 4 - Signal Generation Engine (Weeks 9-10)
+• Implement sliding-window temporal aggregator (15-min, 1-hour, 4-hour) with exponential time-decay
+• Build source credibility weighting matrix; assign initial weights by source tier
+• Code signal strength and confidence score calculations per the defined formulae
+• Implement threshold-based BUY/SELL/HOLD decision logic with configurable parameters
+• Build explainability layer: for each signal, surface top supporting headlines and reasoning
+• Write signals to InfluxDB with full metadata
+• Milestone: System generates labelled trading signals with strength scores and evidence
+
+Phase 5 - Web Application (Weeks 11-13)
+• Scaffold React.js project with TailwindCSS; define component hierarchy
+• Build FastAPI REST endpoints: /signals, /sentiment, /news, /pairs, /admin
+• Implement WebSocket endpoint for live signal push to connected clients
+• Develop dashboard components: Signal Card, Sentiment Trend Chart (Recharts), Currency Pair Selector, Confidence Gauge
+• Build integrated Forex News Blog view with AI sentiment annotations
+• Implement Admin Panel: threshold sliders, source weight controls, window selectors
+• Conduct responsive design testing across desktop and mobile viewports
+• Milestone: Fully functional dashboard streaming live signals from the backend
+
+Phase 6 - Backtesting & Evaluation (Weeks 14-15)
+• Source historical Forex OHLCV data (EUR/USD, GBP/USD, USD/JPY) from a free provider (e.g., Alpha Vantage, Yahoo Finance)
+• Replay stored signals against price history; record trade outcomes per threshold configuration
+• Compute evaluation metrics: win rate, average R:R, Sharpe ratio, maximum drawdown, confidence calibration
+• Evaluate FinBERT: Accuracy, Precision, Recall, F1, Confusion Matrix on held-out labelled dataset
+• Measure system latency across 100 sample news items; confirm =5-second SLA
+• Produce backtesting report; expose results in dashboard Backtesting tab
+• Milestone: All evaluation metrics documented and reportable
+
+Phase 7 - Integration, Testing & Documentation (Weeks 16-17)
+• Full end-to-end integration test: simulated news event ? signal generation ? dashboard display
+• Load test at 1,000 items/minute; identify and resolve bottlenecks
+• Write OpenAPI documentation for all FastAPI endpoints
+• Produce deployment guide (Docker Compose up instructions, env-var reference)
+• Produce troubleshooting guide for common API failures and database errors
+• Peer/supervisor review of dashboard UX; iterate on feedback
+• Final code clean-up, README, and GitHub release tag
+• Milestone: System fully integrated, documented, and ready for submission demonstration
+
+
+10. EVALUATION METRICS
+10.1 NLP Model Metrics
+MetricDefinitionTargetAccuracyProportion of correctly classified sentiment labels= 75%Precision (per class)TP / (TP + FP) for each of Positive, Negative, Neutral= 70% per classRecall (per class)TP / (TP + FN) for each class= 70% per classF1-Score (macro)Harmonic mean of precision and recall, macro-averaged= 75%Confusion MatrixVisual breakdown of misclassification patternsDocumented
+10.2 Signal Performance Metrics
+MetricDefinitionTargetWin Rate% of BUY/SELL signals that would have been profitable vs. next price moveDocumented (>50% preferred)Average R:RAverage reward-to-risk ratio across all backtested signalsDocumentedSharpe RatioRisk-adjusted return normalised by standard deviationDocumented (>1 preferred)Maximum DrawdownLargest peak-to-trough equity loss during backtesting periodDocumentedConfidence CalibrationAlignment between signal confidence scores and actual win rateCalibration curve plotted
+10.3 System Performance Metrics
+MetricDefinitionTargetSignal LatencyTime from news publication to signal availability in dashboard= 5 secondsIngestion ThroughputNews items processed per minute at peak load= 1,000 items/minAPI Uptime% of time external data sources successfully polled= 95%Inference LatencyFinBERT response time per batch< 1 second per batch
+
+11. RISKS & MITIGATIONS
+RiskLikelihoodMitigationTwitter/X API access restrictions or cost increaseHighImplement fallback to News API + Reddit only; design collectors as plug-and-play modulesFinBERT inference too slow for sub-5s SLA on CPUMediumEnable batch processing, response caching; use quantised model; fall back to VADER for overflowInsufficient labelled financial data for evaluationMediumUse publicly available FiQA, Financial PhraseBank, or SEntFiN datasetsRedis Streams bottleneck under peak loadLowProfile under synthetic load; switch to Kafka if Redis proves insufficientHistorical Forex price data gaps for backtestingLowSource from multiple providers (Alpha Vantage, Yahoo Finance, OANDA demo API)Scope creep reducing time for core featuresHighStrictly prioritise O1-O4; defer nice-to-have features (multilingual, mobile app) to future work
+
+12. ACCEPTANCE CRITERIA
+The project will be considered successfully implemented when ALL of the following conditions are met:
+
+• Data flows in real-time from at least three of the four target sources (News API, Twitter/X, Reddit, Telegram) into MongoDB without manual intervention.
+• The preprocessing pipeline correctly identifies currency pairs and filters non-English content with zero unhandled exceptions during a 30-minute live run.
+• The FinBERT service classifies a labelled evaluation set with =75% macro F1-score and produces confidence scores that correlate positively with accuracy.
+• The signal engine generates BUY/SELL/HOLD recommendations with supporting evidence for at least three currency pairs simultaneously.
+• End-to-end latency measured across 100 sample news events does not exceed 5 seconds at the 95th percentile.
+• The React dashboard streams live signals via WebSocket, renders sentiment trend charts, and displays the Forex news blog without page refresh.
+• The backtesting module produces a complete performance report (win rate, Sharpe ratio, drawdown) for a minimum 30-day historical period.
+• The entire system starts via a single 'docker compose up' command in a clean environment.
+• OpenAPI documentation is accessible at /docs on the running FastAPI server.
+• A deployment guide and troubleshooting guide are present in the repository.
+
+
+13. GLOSSARY
+TermDefinitionFinBERTA BERT-based transformer model pre-trained on financial corpora for domain-specific sentiment classificationBUY / SELL / HOLDDirectional trading recommendations generated by the signal engineSignal Strength (0-100)Composite measure of sentiment consensus, volume, and source credibilityConfidence Score (0-1)Statistical reliability of a sentiment classification or signalTime-Decay WeightingExponential down-weighting of older news items to reflect rapid relevance decay in Forex marketsWebSocketFull-duplex communication protocol enabling the server to push live signal updates to connected browser clientsDocker ComposeTool for defining and running multi-container Docker applications from a single YAML configurationSharpe RatioReturn per unit of risk; values above 1.0 indicate favourable risk-adjusted performanceMaximum DrawdownLargest peak-to-trough equity decline during a backtesting period; lower is betterOHLCVOpen, High, Low, Close, Volume - standard format for historical price data
+
+14. PRIMARY REFERENCES
+This PRD is derived from the following key sources cited in the project research:
+• Araci, D. (2019). FinBERT: Financial sentiment analysis with pre-trained language models. arXiv:1908.10063
+• Devlin, J. et al. (2019). BERT: Pre-training of deep bidirectional transformers. NAACL 2019
+• Deng, S. et al. (2022). Financial news sentiment analysis with deep learning for Forex market prediction. IEEE TKDE
+• Olaiyapo, O. F. (2024). Applying news and media sentiment analysis for generating Forex trading signals. RBES
+• Sousa, R. M. et al. (2023). Sentiment analysis of financial news for Forex market prediction using transformer-based models. ESWA
+• Sommerville, I. (2015). Software Engineering (10th ed.). Pearson
+• Wolf, T. et al. (2020). Transformers: State-of-the-art NLP. EMNLP 2020
+PRODUCT REQUIREMENTS DOCUMENT  |  Real-Time AI Sentiment Analysis Engine for Forex News Trading
+
+Page 1 | Oluwole Ayodeji - AUL/CMP/22/073
+

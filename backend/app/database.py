@@ -55,15 +55,15 @@ async def create_mongodb_indexes():
     await mongodb_database.raw_news.create_index([("content_hash", 1)], unique=True)
 
     # Processed news collection indexes
-    await mongodb_database.processed_news.create_index([("timestamp", -1)])
-    await mongodb_database.processed_news.create_index([("currency_pairs", 1)])
-    await mongodb_database.processed_news.create_index([("sentiment.label", 1)])
-    await mongodb_database.processed_news.create_index([("content_hash", 1)], unique=True)
+    await mongodb_database.news.create_index([("timestamp", -1)])
+    await mongodb_database.news.create_index([("currency_pairs", 1)])
+    await mongodb_database.news.create_index([("sentiment.label", 1)])
+    await mongodb_database.news.create_index([("content_hash", 1)], unique=True)
 
-    # Sentiment results collection indexes
-    await mongodb_database.sentiment_results.create_index([("timestamp", -1)])
-    await mongodb_database.sentiment_results.create_index([("currency_pair", 1)])
-    await mongodb_database.sentiment_results.create_index([("content_hash", 1)], unique=True)
+    # Signals collection indexes
+    await mongodb_database.signals.create_index([("timestamp", -1)])
+    await mongodb_database.signals.create_index([("currency_pair", 1)])
+    await mongodb_database.signals.create_index([("time_window", 1)])
 
 
 # Redis Connection
@@ -94,6 +94,7 @@ async def disconnect_redis():
 
 # PostgreSQL Connection
 Base = declarative_base()
+from app.models import tables  # noqa: F401
 async_engine = None
 async_session_maker = None
 
@@ -216,6 +217,11 @@ def get_postgres_session():
     return async_session_maker()
 
 
+def get_postgres_engine():
+    """Get PostgreSQL async engine"""
+    return async_engine
+
+
 def get_influxdb_write_api():
     """Get InfluxDB write API"""
     return influxdb_write_api
@@ -226,3 +232,8 @@ def get_influxdb_query_api():
     if influxdb_client:
         return influxdb_client.query_api()
     return None
+
+
+def get_influxdb_client():
+    """Get InfluxDB client"""
+    return influxdb_client
