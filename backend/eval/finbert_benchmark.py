@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 import requests
 import torch
+from datasets import load_dataset
 from sklearn.metrics import (
     accuracy_score,
     confusion_matrix,
@@ -50,9 +51,9 @@ def _is_probably_html(sample: bytes) -> bool:
     return snippet.startswith(b"<!doctype html") or snippet.startswith(b"<html")
 
 
-def _download_file(url: str, dest_path: Path) -> Path:
+def _download_file(url: str, dest_path: Path, headers: Optional[Dict[str, str]]) -> Path:
     dest_path.parent.mkdir(parents=True, exist_ok=True)
-    with requests.get(url, stream=True, timeout=60) as response:
+    with requests.get(url, stream=True, timeout=60, headers=headers) as response:
         response.raise_for_status()
         sample = response.raw.read(512)
         if _is_probably_html(sample):
@@ -65,8 +66,16 @@ def _download_file(url: str, dest_path: Path) -> Path:
     return dest_path
 
 
-def _download_from_candidates(name: str, urls: List[str], dest_dir: Path) -> Path:
+def _download_from_candidates(
+    name: str,
+    urls: List[str],
+    dest_dir: Path,
+    token: Optional[str],
+) -> Path:
     errors = []
+    headers = {"User-Agent": "PipPulse-AI-FinBERT-Benchmark/1.0"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     for url in urls:
         try:
             filename = Path(urlparse(url).path).name or f"{name}.data"
@@ -74,7 +83,7 @@ def _download_from_candidates(name: str, urls: List[str], dest_dir: Path) -> Pat
             if target.exists() and target.stat().st_size > 0:
                 return target
             print(f"Downloading {name} dataset from {url}")
-            return _download_file(url, target)
+            return _download_file(url, target, headers)
         except Exception as exc:
             errors.append(f"{url} -> {exc}")
     error_text = "\n".join(errors)
@@ -233,51 +242,101 @@ def _map_numeric_label(value: int) -> Optional[str]:
     return None
 
 
-def _load_dataset(spec: DatasetSpec, data_dir: Path) -> Tuple[List[str], List[str], Dict[str, str]]:
-    dataset_dir = data_dir / spec.key
-    _ensure_dir(dataset_dir)
-
-    source = "local"
-    dataset_path = None
-    if spec.local_path:
-        dataset_path = Path(spec.local_path)
-        if not dataset_path.exists():
-            raise FileNotFoundError(f"{spec.name} path not found: {dataset_path}")
-    else:
-        dataset_path = _download_from_candidates(spec.name, spec.candidate_urls, dataset_dir)
-        source = "download"
-
-    extracted_path = _extract_if_archive(dataset_path, dataset_dir)
-    data_files = _find_data_files(extracted_path)
-    if not data_files:
-        raise RuntimeError(f"No data files found for {spec.name} in {extracted_path}")
-
-    last_error = None
-    for file_path in data_files:
+def _load_dataset(
+    spec: DatasetSpec,
+    data_dir: Path,
+    token: Optional[str],
+) -> Tuple[List[str], List[str], Dict[str, str]]:
+    """Load dataset using HuggingFace datasets library."""
+    
+    # Set HuggingFace token if provided
+    if token:
+        os.environ["HF_TOKEN"] = token
         try:
-            df = _load_dataframe(file_path)
-            text_col, label_col = _detect_columns(df)
-            texts = df[text_col].astype(str).tolist()
-            raw_labels = df[label_col].tolist()
-            normalized_labels = _normalize_labels(raw_labels)
-            cleaned_texts = []
-            cleaned_labels = []
-            for text, label in zip(texts, normalized_labels):
-                if label in LABELS:
-                    cleaned_texts.append(text)
-                    cleaned_labels.append(label)
-            if not cleaned_texts:
-                raise RuntimeError("No usable labeled rows found.")
-            return cleaned_texts, cleaned_labels, {
-                "source": source,
-                "file": str(file_path),
-                "text_column": text_col,
-                "label_column": label_col,
-            }
-        except Exception as exc:
-            last_error = exc
-            continue
-    raise RuntimeError(f"Failed to parse {spec.name} dataset: {last_error}")
+            from huggingface_hub import login
+            login(token=token, add_to_git_credential=False)
+        except Exception:
+            pass  # Token will be used via environment variable
+    
+    try:
+        print(f"Loading {spec.name} from HuggingFace Hub...")
+        
+        # Use different dataset identifiers
+        if spec.key == "fiqa":
+            dataset = load_dataset("fiqa", "v0.1", split="train[:1000]", trust_remote_code=True)
+        elif spec.key == "phrasebank":
+            dataset = load_dataset("financial_phrasebank", "sentences_allagree", split="train", trust_remote_code=True)
+        else:
+            raise ValueError(f"Unknown dataset key: {spec.key}")
+        
+        # Convert to pandas and detect columns
+        df = dataset.to_pandas()
+        
+        # Dataset-specific column mapping
+        if spec.key == "fiqa":
+            # FiQA: typically has 'question', 'sentence', 'entity', 'label' columns
+            text_col = None
+            label_col = None
+            for col in df.columns:
+                if col.lower() in ["sentence", "text", "question"]:
+                    text_col = col
+                if col.lower() in ["label", "sentiment"]:
+                    label_col = col
+            if not text_col or not label_col:
+                text_col, label_col = _detect_columns(df)
+        else:
+            # FinancialPhraseBank: has 'sentence' and 'label' columns
+            text_col = "sentence"
+            label_col = "label"
+        
+        texts = df[text_col].astype(str).tolist()
+        raw_labels = df[label_col].tolist()
+        
+        # Normalize labels
+        normalized_labels = []
+        for label in raw_labels:
+            if isinstance(label, str):
+                normalized = label.lower().strip()
+                if normalized in ["negative", "neutral", "positive"]:
+                    normalized_labels.append(normalized)
+                elif normalized in ["neg", "-1"]:
+                    normalized_labels.append("negative")
+                elif normalized in ["neu", "0"]:
+                    normalized_labels.append("neutral")
+                elif normalized in ["pos", "1"]:
+                    normalized_labels.append("positive")
+            elif isinstance(label, (int, np.integer)):
+                if label == 0 or label == -1:
+                    normalized_labels.append("negative")
+                elif label == 1:
+                    normalized_labels.append("neutral")
+                elif label == 2:
+                    normalized_labels.append("positive")
+            else:
+                normalized_labels.append(None)
+        
+        # Clean texts and labels
+        cleaned_texts = []
+        cleaned_labels = []
+        for text, label in zip(texts, normalized_labels):
+            if label in LABELS and text.strip():
+                cleaned_texts.append(text)
+                cleaned_labels.append(label)
+        
+        if not cleaned_texts:
+            raise RuntimeError(f"No usable labeled rows found in {spec.name}")
+        
+        return cleaned_texts, cleaned_labels, {
+            "source": "huggingface_hub",
+            "dataset_key": spec.key,
+            "text_column": text_col,
+            "label_column": label_col,
+            "rows_loaded": len(texts),
+            "rows_usable": len(cleaned_texts),
+        }
+    
+    except Exception as exc:
+        raise RuntimeError(f"Failed to load {spec.name} from HuggingFace Hub: {exc}")
 
 
 def _load_model(model_name: str, device: Optional[str]) -> pipeline:
@@ -480,6 +539,11 @@ def main() -> int:
     parser.add_argument("--model-name", default="ProsusAI/finbert")
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--device", default=None, choices=["cpu", "cuda", "mps"])
+    parser.add_argument(
+        "--hf-token",
+        default=os.environ.get("HUGGINGFACE_TOKEN") or os.environ.get("HF_TOKEN"),
+        help="Hugging Face access token for gated datasets.",
+    )
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
@@ -509,8 +573,10 @@ def main() -> int:
     )
 
     print("Loading datasets...")
-    fiqa_texts, fiqa_labels, fiqa_meta = _load_dataset(fiqa_spec, data_dir)
-    phrase_texts, phrase_labels, phrase_meta = _load_dataset(phrasebank_spec, data_dir)
+    fiqa_texts, fiqa_labels, fiqa_meta = _load_dataset(fiqa_spec, data_dir, args.hf_token)
+    phrase_texts, phrase_labels, phrase_meta = _load_dataset(
+        phrasebank_spec, data_dir, args.hf_token
+    )
 
     print("Loading FinBERT model...")
     model_pipeline, device = _load_model(args.model_name, args.device)
