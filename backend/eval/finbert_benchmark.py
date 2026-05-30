@@ -367,7 +367,14 @@ def _predict_batch(model_pipeline: pipeline, texts: List[str], batch_size: int) 
         batch = texts[idx: idx + batch_size]
         results = model_pipeline(batch, return_all_scores=True, truncation=True)
         for result in results:
-            best = max(result, key=lambda item: item["score"])
+            # Handle both single result (dict) and list of results (pipeline with return_all_scores=True)
+            if isinstance(result, list):
+                # result is a list of dicts: [{"label": "negative", "score": 0.9}, ...]
+                best = max(result, key=lambda item: item["score"])
+            else:
+                # result is a single dict: {"label": "negative", "score": 0.9}
+                best = result
+            
             predictions.append({
                 "label": best["label"].lower(),
                 "confidence": float(best["score"]),
