@@ -269,7 +269,7 @@ def _load_dataset(
         if spec.key == "fiqa":
             # Use train split for FiQA validation
             dataset_split = dataset["train"]
-        elif spec.key == "phrasebank":
+        elif spec.key in ("phrasebank", "financial_phrasebank"):
             # Use test split for PhraseBank validation
             dataset_split = dataset["test"]
         else:
@@ -313,14 +313,14 @@ def _load_dataset(
         if not cleaned_texts:
             raise RuntimeError(f"No usable labeled rows found in {spec.name}")
         
-        split_name = spec.key  if spec.key == "phrasebank" else "train"
+        split_name = "test" if spec.key in ("phrasebank", "financial_phrasebank") else "train"
         print(f"  Loaded {len(cleaned_texts)} samples from atrost/financial_phrasebank ({split_name} split)")
         
         return cleaned_texts, cleaned_labels, {
             "source": "huggingface_hub",
             "dataset_key": spec.key,
             "dataset_name": "atrost/financial_phrasebank",
-            "split": "test" if spec.key == "phrasebank" else "train",
+            "split": split_name,
             "text_column": text_col,
             "label_column": label_col,
             "rows_loaded": len(texts),
