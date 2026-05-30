@@ -1,0 +1,35 @@
+{
+  "timestamp": "2026-05-30T19:53:21.377556",
+  "configuration": {
+    "items_per_minute": 1000,
+    "duration_minutes": 10,
+    "total_items": 10000
+  },
+  "processing": {
+    "items_processed": 10000,
+    "items_failed": 0,
+    "success_rate": 1.0,
+    "actual_rate_per_minute": 724.3766794817107,
+    "elapsed_seconds": 828.2983384132385
+  },
+  "latency": {
+    "min_ms": 30.959716796875,
+    "avg_ms": 79.2696251953125,
+    "p50_ms": 72.500732421875,
+    "p95_ms": 134.396728515625,
+    "p99_ms": 257.672607421875,
+    "max_ms": 794.985595703125
+  },
+  "system": {
+    "cpu_peak_percent": 14.2,
+    "cpu_avg_percent": 0.71,
+    "memory_peak_mb": 39.43359375,
+    "memory_avg_mb": 36.53359375
+  },
+  "acceptance_criteria": {
+    "passed": 6,
+    "failed": 0,
+    "total": 6
+  },
+  "status": "PASS"
+}
