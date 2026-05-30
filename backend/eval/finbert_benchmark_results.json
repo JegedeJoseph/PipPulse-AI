@@ -1,0 +1,129 @@
+{
+  "timestamp": "2026-05-30 19:20:06",
+  "model": {
+    "name": "ProsusAI/finbert",
+    "device": "cpu"
+  },
+  "dataset_sources": {
+    "fiqa": {
+      "source": "huggingface_hub",
+      "dataset_key": "fiqa",
+      "dataset_name": "atrost/financial_phrasebank",
+      "split": "train",
+      "text_column": "sentence",
+      "label_column": "label",
+      "rows_loaded": 3100,
+      "rows_usable": 3100
+    },
+    "financial_phrasebank": {
+      "source": "huggingface_hub",
+      "dataset_key": "financial_phrasebank",
+      "dataset_name": "atrost/financial_phrasebank",
+      "split": "test",
+      "text_column": "sentence",
+      "label_column": "label",
+      "rows_loaded": 970,
+      "rows_usable": 970
+    }
+  },
+  "fiqua_dataset": {
+    "dataset_name": "FiQA",
+    "total_samples": 3100,
+    "accuracy": 0.896774193548387,
+    "macro_f1_score": 0.8924004541806562,
+    "per_class_metrics": {
+      "negative": {
+        "precision": 0.8340807174887892,
+        "recall": 0.9738219895287958,
+        "f1": 0.8985507246376812,
+        "support": 382
+      },
+      "neutral": {
+        "precision": 0.9667874396135265,
+        "recall": 0.8644708423326134,
+        "f1": 0.9127708095781072,
+        "support": 1852
+      },
+      "positive": {
+        "precision": 0.8086172344689379,
+        "recall": 0.9318706697459584,
+        "f1": 0.8658798283261803,
+        "support": 866
+      }
+    },
+    "confusion_matrix": [
+      [
+        372,
+        6,
+        4
+      ],
+      [
+        64,
+        1601,
+        187
+      ],
+      [
+        10,
+        49,
+        807
+      ]
+    ],
+    "label_distribution": {
+      "negative": 382,
+      "neutral": 1852,
+      "positive": 866
+    },
+    "model_confidence_correlation": 0.36550900711868417,
+    "status": "PASS - Meets 75% F1-score target"
+  },
+  "financialphrasebank_dataset": {
+    "dataset_name": "FinancialPhraseBank",
+    "total_samples": 970,
+    "accuracy": 0.8649484536082475,
+    "macro_f1_score": 0.8560822020792368,
+    "per_class_metrics": {
+      "negative": {
+        "precision": 0.7547169811320755,
+        "recall": 0.96,
+        "f1": 0.8450704225352113,
+        "support": 125
+      },
+      "neutral": {
+        "precision": 0.9438877755511023,
+        "recall": 0.8336283185840708,
+        "f1": 0.8853383458646616,
+        "support": 565
+      },
+      "positive": {
+        "precision": 0.7948717948717948,
+        "recall": 0.8857142857142857,
+        "f1": 0.8378378378378378,
+        "support": 280
+      }
+    },
+    "confusion_matrix": [
+      [
+        120,
+        3,
+        2
+      ],
+      [
+        32,
+        471,
+        62
+      ],
+      [
+        7,
+        25,
+        248
+      ]
+    ],
+    "label_distribution": {
+      "negative": 125,
+      "neutral": 565,
+      "positive": 280
+    },
+    "model_confidence_correlation": 0.4228333215604288,
+    "status": "PASS - Meets 75% F1-score target"
+  }
+}
