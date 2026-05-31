@@ -106,7 +106,7 @@ services:
       - ENVIRONMENT=production
       - MONGODB_URI= mongodb+srv://${MONGO_USERNAME}:${MONGO_PASSWORD}@cluster0.wj77ll9.mongodb.net/?appName=Cluster0
       - REDIS_URI=redis://redis:6379/0
-      - POSTGRES_URI=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - POSTGRES_URI=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}3@ls-d59e20cc1f9cd3f2a70d39a6ef9d424a750fbcb6.cmnmiowuqxsb.us-east-1.rds.amazonaws.com:5432/${POSTGRES_DB}
       - INFLUXDB_URL=http://influxdb:8086
       - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
       - INFLUXDB_ORG=${INFLUXDB_ORG}
