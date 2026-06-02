@@ -1,12 +1,11 @@
-version: '3.8'
 
 services:
   # External services (MongoDB Atlas, PostgreSQL Lightsail) are configured via env vars
   # Local services only:
 
   redis:
-    image: redis:latest
-    container_name: pippulse-redis
+    image: redis
+    container_name: my-redis-db
     restart: unless-stopped
     ports:
       - "6379:6379"
@@ -23,7 +22,7 @@ services:
 
   influxdb:
     image: influxdb:latest
-    container_name: pippulse-influxdb
+    container_name: influxdb
     ports:
       - "8086:8086"
     environment:
