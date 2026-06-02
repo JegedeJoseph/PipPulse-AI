@@ -1,0 +1,21 @@
+# ML & NLP (Heavy packages - install separately)
+transformers==5.0.0rc3
+torch==2.8.0
+sentencepiece==0.2.1
+accelerate==0.26.1
+scikit-learn==1.5.0
+numpy==1.26.3
+pandas==2.2.0
+nltk==3.9.4
+spacy==3.7.2
+langdetect==1.0.9
+textblob==0.17.1
+
+# Web Scraping
+beautifulsoup4==4.12.3
+lxml==6.1.0
+
+# Social Media APIs
+tweepy==4.14.0
+praw==7.7.1
+telethon==1.33.1
