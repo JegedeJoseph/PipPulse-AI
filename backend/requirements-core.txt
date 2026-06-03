@@ -16,7 +16,7 @@ influxdb-client==1.40.0
 
 # Data & Utils
 requests==2.33.0
-aiohttp==3.13.4
+aiohttp==3.14.0
 feedparser==6.0.11
 python-dateutil==2.8.2
 pytz==2023.3.post1
