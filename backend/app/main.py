@@ -7,6 +7,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.database import init_databases, close_databases
+from app.api import health, signals, news, admin, backtesting, websocket
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):

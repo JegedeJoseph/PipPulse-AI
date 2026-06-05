@@ -1,0 +1,180 @@
+"""
+Database Connection Module
+Handles connections to MongoDB, Redis, PostgreSQL, and InfluxDB
+"""
+
+import os
+from motor.motor_asyncio import AsyncIOMotorClient as AsyncMongoClient, AsyncIOMotorDatabase as AsyncMongoDB
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+import redis.asyncio as aioredis
+from influxdb_client import InfluxDBClient
+from influxdb_client.client.write_api import SYNCHRONOUS
+
+from app.config import settings
+
+# ============ MONGODB (External - MongoDB Atlas) ============
+class MongoDBConnection:
+    client: AsyncMongoClient = None
+    db: AsyncMongoDB = None
+
+    @classmethod
+    async def connect_db(cls):
+        """Connect to MongoDB Atlas using URI from environment"""
+        cls.client = AsyncMongoClient(settings.mongodb_uri)
+        cls.db = cls.client["pippulse"]
+        # Verify connection
+        await cls.db.command("ping")
+        print("✅ Connected to MongoDB Atlas")
+
+    @classmethod
+    async def close_db(cls):
+        """Close MongoDB connection"""
+        if cls.client:
+            cls.client.close()
+            print("🔌 Disconnected from MongoDB Atlas")
+
+    @classmethod
+    async def get_db(cls):
+        """Get MongoDB database instance"""
+        return cls.db
+
+# ============ PostgreSQL (External - AWS Lightsail) ============
+class PostgreSQLConnection:
+    engine = None
+    SessionLocal = None
+
+    @classmethod
+    def connect_db(cls):
+        """Connect to PostgreSQL on AWS Lightsail using URI from environment"""
+        # Use postgresql+asyncpg for async operations
+        async_uri = settings.postgres_uri.replace("postgresql://", "postgresql+asyncpg://")
+        
+        cls.engine = create_async_engine(
+            async_uri,
+            echo=False,
+            pool_pre_ping=True,
+            pool_size=20,
+            max_overflow=0,
+        )
+        cls.SessionLocal = async_sessionmaker(
+            cls.engine,
+            class_=AsyncSession,
+            expire_on_commit=False
+        )
+        print("✅ Connected to PostgreSQL on AWS Lightsail")
+
+    @classmethod
+    async def close_db(cls):
+        """Close PostgreSQL connection"""
+        if cls.engine:
+            await cls.engine.dispose()
+            print("🔌 Disconnected from PostgreSQL")
+
+    @classmethod
+    async def get_session(cls) -> AsyncSession:
+        """Get PostgreSQL session"""
+        async with cls.SessionLocal() as session:
+            yield session
+
+# ============ REDIS (Local Docker Container) ============
+class RedisConnection:
+    client: aioredis.Redis = None
+
+    @classmethod
+    async def connect_db(cls):
+        """Connect to Redis container"""
+        cls.client = await aioredis.from_url(
+            settings.redis_url,
+            encoding="utf8",
+            decode_responses=True
+        )
+        print("✅ Connected to Redis")
+
+    @classmethod
+    async def close_db(cls):
+        """Close Redis connection"""
+        if cls.client:
+            await cls.client.close()
+            print("🔌 Disconnected from Redis")
+
+    @classmethod
+    def get_client(cls):
+        """Get Redis client"""
+        return cls.client
+
+# ============ INFLUXDB (Local Docker Container) ============
+class InfluxDBConnection:
+    client: InfluxDBClient = None
+
+    @classmethod
+    def connect_db(cls):
+        """Connect to InfluxDB container"""
+        cls.client = InfluxDBClient(
+            url=settings.influxdb_url,
+            org=settings.influxdb_org,
+            token=settings.influxdb_token
+        )
+        # Verify connection
+        try:
+            cls.client.ping()
+            print("✅ Connected to InfluxDB")
+        except Exception as e:
+            print(f"❌ InfluxDB connection failed: {e}")
+
+    @classmethod
+    def close_db(cls):
+        """Close InfluxDB connection"""
+        if cls.client:
+            cls.client.close()
+            print("🔌 Disconnected from InfluxDB")
+
+    @classmethod
+    def get_client(cls):
+        """Get InfluxDB client"""
+        return cls.client
+
+# ============ INITIALIZATION ============
+async def init_databases():
+    """Initialize all database connections"""
+    print("\n🚀 Initializing database connections...\n")
+    
+    try:
+        # Connect to external services
+        await MongoDBConnection.connect_db()
+        PostgreSQLConnection.connect_db()
+        await RedisConnection.connect_db()
+        InfluxDBConnection.connect_db()
+        print("\n✅ All database connections established!\n")
+    except Exception as e:
+        print(f"\n❌ Database initialization failed: {e}\n")
+        raise
+
+async def close_databases():
+    """Close all database connections"""
+    print("\n🔌 Closing database connections...\n")
+    await MongoDBConnection.close_db()
+    await PostgreSQLConnection.close_db()
+    await RedisConnection.close_db()
+    InfluxDBConnection.close_db()
+    print("\n✅ All database connections closed!\n")
+
+# Add these functions to database.py
+async def get_mongodb():
+    """Get MongoDB database instance"""
+    if not mongodb:
+        await init_databases()
+    return mongodb
+
+async def get_redis():
+    """Get Redis client instance"""
+    if not redis_client:
+        await init_databases()
+    return redis_client
+
+async def get_influxdb():
+    """Get InfluxDB client instance"""
+    if not influxdb_client:
+        await init_databases()
+    return influxdb_client
