@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     # InfluxDB Configuration
     influxdb_url: str = Field(default="http://localhost:8086", env="INFLUXDB_URL")
     influxdb_token: str = Field(
-        default="pippulse-super-secret-token-change-in-production",
+        default="",
         env="INFLUXDB_TOKEN"
     )
     influxdb_org: str = Field(default="pippulse", env="INFLUXDB_ORG")
@@ -130,7 +130,7 @@ class Settings(BaseSettings):
 
     # JWT Configuration
     jwt_secret_key: str = Field(
-        default="pippulse-jwt-secret-key-change-in-production",
+        default="",
         env="JWT_SECRET_KEY"
     )
     jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")
