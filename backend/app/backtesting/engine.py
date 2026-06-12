@@ -7,9 +7,11 @@ import asyncio
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
 from dataclasses import dataclass
-from collections import defaultdict
+from collections import defaultdict, deque
 import statistics
 import httpx
+import logging
+from time import time
 
 from app.schemas import (
     TradingSignal,
@@ -27,6 +29,9 @@ from app.config import get_settings
 from influxdb_client import Point
 from app.models.tables import backtest_runs
 from sqlalchemy import insert
+
+# Configure logger
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -57,11 +62,50 @@ class PriceData:
     volume: float
 
 
+class RateLimiter:
+    """Simple rate limiter for API requests (token bucket algorithm)"""
+    
+    def __init__(self, max_requests: int = 5, time_window: int = 60):
+        """
+        Initialize rate limiter.
+        
+        Args:
+            max_requests: Maximum number of requests allowed
+            time_window: Time window in seconds
+        """
+        self.max_requests = max_requests
+        self.time_window = time_window
+        self.requests = deque()
+    
+    async def acquire(self):
+        """Wait until a request can be made within rate limit"""
+        now = time()
+        
+        # Remove old requests outside the time window
+        while self.requests and self.requests[0] <= now - self.time_window:
+            self.requests.popleft()
+        
+        # If at capacity, wait until oldest request is outside window
+        if len(self.requests) >= self.max_requests:
+            sleep_time = self.time_window - (now - self.requests[0]) + 0.1
+            if sleep_time > 0:
+                logger.info(f"Rate limit reached. Waiting {sleep_time:.2f}s before next request")
+                await asyncio.sleep(sleep_time)
+                # Recursively check again after sleep
+                return await self.acquire()
+        
+        self.requests.append(now)
+
+
 class PriceDataFetcher:
     """Fetch historical price data for backtesting"""
 
+    # Class-level rate limiter (shared across all instances)
+    _rate_limiter = RateLimiter(max_requests=5, time_window=60)
+
     def __init__(self):
         self.settings = get_settings()
+        logger.debug(f"Initialized PriceDataFetcher with AlphaVantage key: {bool(self.settings.alphavantage_api_key)}")
 
     async def fetch_price_data(
         self,
@@ -97,7 +141,7 @@ class PriceDataFetcher:
             return []
 
         except Exception as e:
-            print(f"Error fetching price data: {e}")
+            logger.error(f"Error fetching price data: {e}")
             return []
 
     async def _fetch_from_influxdb(
@@ -108,7 +152,7 @@ class PriceDataFetcher:
         end_date: datetime,
         interval: str
     ) -> List[PriceData]:
-        """Fetch price data from InfluxDB"""
+        """Fetch price data from InfluxDB cache"""
         try:
             query = f'''
             from(bucket: "{self.settings.influxdb_price_bucket}")
@@ -134,10 +178,12 @@ class PriceDataFetcher:
                         volume=values.get("volume", 0)
                     ))
 
+            if price_data:
+                logger.info(f"Retrieved {len(price_data)} cached price records for {currency_pair} from InfluxDB")
             return price_data
 
         except Exception as e:
-            print(f"Error fetching from InfluxDB: {e}")
+            logger.warning(f"Error fetching from InfluxDB cache for {currency_pair}: {e}")
             return []
 
     async def _fetch_from_alpha_vantage(
@@ -147,11 +193,17 @@ class PriceDataFetcher:
         end_date: datetime,
         interval: str
     ) -> List[PriceData]:
-        """Fetch price data from Alpha Vantage"""
+        """Fetch price data from Alpha Vantage with rate limiting"""
         if not self.settings.alphavantage_api_key:
+            logger.error("ALPHAVANTAGE_API_KEY not configured")
             raise Exception("ALPHAVANTAGE_API_KEY not configured")
 
-        base, quote = currency_pair.split("/")
+        try:
+            base, quote = currency_pair.split("/")
+        except ValueError:
+            logger.error(f"Invalid currency pair format: {currency_pair}")
+            raise Exception(f"Invalid currency pair format: {currency_pair}")
+        
         interval_map = {
             "15min": "15min",
             "1h": "60min",
@@ -168,64 +220,100 @@ class PriceDataFetcher:
             "apikey": self.settings.alphavantage_api_key,
         }
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get("https://www.alphavantage.co/query", params=params)
-            response.raise_for_status()
-            data = response.json()
+        # Apply rate limiting before making request
+        await self._rate_limiter.acquire()
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                logger.info(f"Fetching price data for {currency_pair} from Alpha Vantage")
+                response = await client.get("https://www.alphavantage.co/query", params=params)
+                response.raise_for_status()
+                data = response.json()
+        except httpx.TimeoutException:
+            logger.error(f"Timeout fetching data for {currency_pair} from Alpha Vantage")
+            raise Exception(f"Alpha Vantage request timeout for {currency_pair}")
+        except httpx.HTTPError as e:
+            logger.error(f"HTTP error fetching data for {currency_pair}: {e}")
+            raise Exception(f"Alpha Vantage HTTP error: {e}")
 
         series_key = f"Time Series FX ({av_interval})"
         if series_key not in data:
-            raise Exception(f"Alpha Vantage response missing series: {data.get('Note') or data.get('Error Message')}")
+            error_msg = data.get('Note') or data.get('Error Message') or "Unknown error"
+            logger.error(f"Alpha Vantage response error for {currency_pair}: {error_msg}")
+            raise Exception(f"Alpha Vantage response missing series: {error_msg}")
 
         series = data[series_key]
         price_data = []
+        
         for timestamp_str, values in series.items():
-            timestamp = datetime.fromisoformat(timestamp_str)
+            try:
+                timestamp = datetime.fromisoformat(timestamp_str)
+            except ValueError:
+                logger.warning(f"Invalid timestamp format: {timestamp_str}")
+                continue
+            
             if not (start_date <= timestamp <= end_date):
                 continue
 
-            price_data.append(PriceData(
-                timestamp=timestamp,
-                open=float(values["1. open"]),
-                high=float(values["2. high"]),
-                low=float(values["3. low"]),
-                close=float(values["4. close"]),
-                volume=0.0
-            ))
+            try:
+                price_data.append(PriceData(
+                    timestamp=timestamp,
+                    open=float(values["1. open"]),
+                    high=float(values["2. high"]),
+                    low=float(values["3. low"]),
+                    close=float(values["4. close"]),
+                    volume=0.0
+                ))
+            except (KeyError, ValueError) as e:
+                logger.warning(f"Error parsing price data for {timestamp_str}: {e}")
+                continue
 
         price_data.sort(key=lambda p: p.timestamp)
+        logger.info(f"Fetched {len(price_data)} price records for {currency_pair}")
 
         if interval == "4h":
             price_data = self._aggregate_prices(price_data, hours=4)
 
-        await self._write_to_influxdb(currency_pair, price_data)
+        # Store in InfluxDB for caching
+        try:
+            await self._write_to_influxdb(currency_pair, price_data)
+        except Exception as e:
+            logger.warning(f"Failed to write to InfluxDB for {currency_pair}: {e}")
+            # Don't fail if InfluxDB write fails, just log and continue
+        
         return price_data
 
     async def _write_to_influxdb(self, currency_pair: str, price_data: List[PriceData]) -> None:
         """Persist price data to InfluxDB for caching"""
         write_api = get_influxdb_write_api()
         if not write_api or not price_data:
+            logger.debug(f"Skipping InfluxDB write: write_api={bool(write_api)}, data_points={len(price_data)}")
             return
 
-        points = []
-        for item in price_data:
-            point = (
-                Point("forex_prices")
-                .tag("pair", currency_pair)
-                .field("open", float(item.open))
-                .field("high", float(item.high))
-                .field("low", float(item.low))
-                .field("close", float(item.close))
-                .field("volume", float(item.volume))
-                .time(item.timestamp)
-            )
-            points.append(point)
+        try:
+            points = []
+            for item in price_data:
+                point = (
+                    Point("forex_prices")
+                    .tag("pair", currency_pair)
+                    .tag("timeframe", "intraday")
+                    .field("open", float(item.open))
+                    .field("high", float(item.high))
+                    .field("low", float(item.low))
+                    .field("close", float(item.close))
+                    .field("volume", float(item.volume))
+                    .time(item.timestamp)
+                )
+                points.append(point)
 
-        write_api.write(
-            bucket=self.settings.influxdb_price_bucket,
-            org=self.settings.influxdb_org,
-            record=points
-        )
+            write_api.write(
+                bucket=self.settings.influxdb_price_bucket,
+                org=self.settings.influxdb_org,
+                record=points
+            )
+            logger.info(f"Successfully wrote {len(points)} price records for {currency_pair} to InfluxDB")
+        except Exception as e:
+            logger.error(f"Error writing to InfluxDB for {currency_pair}: {e}")
 
     @staticmethod
     def _aggregate_prices(price_data: List[PriceData], hours: int) -> List[PriceData]:

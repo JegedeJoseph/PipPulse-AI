@@ -5,9 +5,18 @@ Main entry point for the PipPulse AI backend API
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
+from datetime import datetime
+import logging
+
 from app.database import init_databases, close_databases
 from app.api import health, signals, news, admin, backtesting, websocket
+from app.config import get_settings
+
+# Configure logger
+logger = logging.getLogger(__name__)
+settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
