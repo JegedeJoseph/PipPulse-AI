@@ -46,77 +46,14 @@ def _build_mongo_client(uri: str) -> AsyncMongoClient:
     """
     Build a Motor AsyncMongoClient from the given URI.
 
-    If the URI contains authMechanism=MONGODB-OIDC with CLIENT_ID / CLIENT_SECRET
-    in authMechanismProperties, strip those out and use a custom OIDCCallback so
-    PyMongo can perform the OAuth 2.0 Client-Credentials token exchange at runtime.
+    Applies sensible defaults:
+    - Short timeouts so the app doesn't hang if MongoDB is unreachable.
+    - Uses certifi CA bundle for TLS (required in slim Docker images).
     """
-    parsed = urlparse(uri)
-    qs = parse_qs(parsed.query, keep_blank_values=True)
-
-    auth_mechanism = qs.get("authMechanism", [None])[0]
-
-    if auth_mechanism and auth_mechanism.upper() == "MONGODB-OIDC":
-        # Extract authMechanismProperties
-        props_raw = qs.get("authMechanismProperties", [""])[0]
-        props = dict(item.split(":", 1) for item in props_raw.split(",") if ":" in item)
-
-        client_id = props.pop("CLIENT_ID", None)
-        client_secret = props.pop("CLIENT_SECRET", None)
-
-        if client_id and client_secret:
-            # Rebuild the URI *without* CLIENT_ID / CLIENT_SECRET in the query
-            remaining_props = ",".join(f"{k}:{v}" for k, v in props.items())
-            new_qs = {k: v for k, v in qs.items() if k != "authMechanismProperties"}
-            if remaining_props:
-                new_qs["authMechanismProperties"] = [remaining_props]
-            # Remove authMechanism from query — we'll pass it programmatically
-            new_qs.pop("authMechanism", None)
-
-            clean_query = urlencode(new_qs, doseq=True)
-            clean_uri = urlunparse(parsed._replace(query=clean_query))
-
-            # Import OIDC callback helpers
-            try:
-                from pymongo.auth_oidc import OIDCCallback, OIDCCallbackContext, OIDCCallbackResult
-            except ImportError:
-                logger.warning(
-                    "pymongo.auth_oidc not available — falling back to URI-based auth. "
-                    "Upgrade pymongo to >=4.8 for OIDC support."
-                )
-                return AsyncMongoClient(uri)
-
-            import requests as _requests
-
-            class AtlasServiceAccountCallback(OIDCCallback):
-                """Fetch an access token from MongoDB Atlas using Client Credentials."""
-
-                _TOKEN_URL = "https://cloud.mongodb.com/api/oauth/token"
-
-                def fetch(self, context: OIDCCallbackContext) -> OIDCCallbackResult:
-                    resp = _requests.post(
-                        self._TOKEN_URL,
-                        data={"grant_type": "client_credentials"},
-                        auth=(client_id, client_secret),
-                        headers={"Content-Type": "application/x-www-form-urlencoded"},
-                        timeout=30,
-                    )
-                    resp.raise_for_status()
-                    token = resp.json()["access_token"]
-                    return OIDCCallbackResult(access_token=token)
-
-            logger.info("Using OIDC Service Account callback for MongoDB authentication")
-            kwargs = {
-                "authMechanism": "MONGODB-OIDC",
-                "authMechanismProperties": {"OIDC_CALLBACK": AtlasServiceAccountCallback()},
-                "serverSelectionTimeoutMS": 5000,
-                "connectTimeoutMS": 5000,
-            }
-            if CERTIFI_CA:
-                kwargs["tlsCAFile"] = CERTIFI_CA
-            return AsyncMongoClient(clean_uri, **kwargs)
-
-    # Default — no special OIDC handling needed
-    kwargs = {"serverSelectionTimeoutMS": 5000, "connectTimeoutMS": 5000}
+    kwargs = {
+        "serverSelectionTimeoutMS": 5000,
+        "connectTimeoutMS": 5000,
+    }
     if CERTIFI_CA:
         kwargs["tlsCAFile"] = CERTIFI_CA
     return AsyncMongoClient(uri, **kwargs)

@@ -24,7 +24,7 @@ metadata = Base.metadata
 system_config = Table(
     "system_config",
     metadata,
-    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()")),
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
     Column("config_key", String(100), nullable=False, unique=True),
     Column("config_value", JSONB, nullable=False),
     Column("description", Text),
@@ -36,7 +36,7 @@ system_config = Table(
 backtest_runs = Table(
     "backtest_runs",
     metadata,
-    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("uuid_generate_v4()")),
+    Column("id", UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")),
     Column("currency_pair", String(20), nullable=False),
     Column("start_date", DateTime(timezone=True), nullable=False),
     Column("end_date", DateTime(timezone=True), nullable=False),
