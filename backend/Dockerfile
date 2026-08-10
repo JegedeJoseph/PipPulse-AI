@@ -22,8 +22,8 @@ RUN pip install --no-cache-dir --default-timeout=1000 -r requirements-ml.txt || 
 # Copy application code
 COPY app ./app
 
-# Download spaCy model
-RUN python -m spacy download en_core_web_sm
+# Download spaCy model directly to avoid 404 resolution errors
+RUN pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
