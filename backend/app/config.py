@@ -3,10 +3,11 @@ Application Configuration Module
 Handles environment variables and application settings
 """
 
-from typing import List, Optional
+from typing import List, Optional, Any
 from pydantic_settings import BaseSettings
-from pydantic import Field
+from pydantic import Field, computed_field
 import os
+import json
 
 
 class Settings(BaseSettings):
@@ -84,31 +85,56 @@ class Settings(BaseSettings):
     window_4hour: int = Field(default=240, env="WINDOW_4HOUR")
 
     # Currency Pairs
-    currency_pairs: List[str] = Field(
-        default=["EUR/USD", "GBP/USD", "USD/JPY", "USD/CHF", "AUD/USD", "USD/CAD"],
+    currency_pairs_raw: str = Field(
+        default="EUR/USD,GBP/USD,USD/JPY,USD/CHF,AUD/USD,USD/CAD",
         env="CURRENCY_PAIRS"
     )
 
+    @computed_field
+    @property
+    def currency_pairs(self) -> List[str]:
+        return _parse_list(self.currency_pairs_raw)
+
     # Subreddits
-    reddit_subreddits: List[str] = Field(
-        default=["Forex", "CurrencyTrading", "ForexStrategy", "Daytrading"],
+    reddit_subreddits_raw: str = Field(
+        default="Forex,CurrencyTrading,ForexStrategy,Daytrading",
         env="REDDIT_SUBREDDITS"
     )
 
+    @computed_field
+    @property
+    def reddit_subreddits(self) -> List[str]:
+        return _parse_list(self.reddit_subreddits_raw)
+
     # Telegram Channels
-    telegram_channels: List[str] = Field(
-        default=["forex_signals", "forex_trading"],
+    telegram_channels_raw: str = Field(
+        default="forex_signals,forex_trading",
         env="TELEGRAM_CHANNELS"
     )
 
+    @computed_field
+    @property
+    def telegram_channels(self) -> List[str]:
+        return _parse_list(self.telegram_channels_raw)
+
     # News Categories
-    news_categories: List[str] = Field(
-        default=["business", "general"],
+    news_categories_raw: str = Field(
+        default="business,general",
         env="NEWS_CATEGORIES"
     )
 
+    @computed_field
+    @property
+    def news_categories(self) -> List[str]:
+        return _parse_list(self.news_categories_raw)
+
     # News Languages
-    news_languages: List[str] = Field(default=["en"], env="NEWS_LANGUAGES")
+    news_languages_raw: str = Field(default="en", env="NEWS_LANGUAGES")
+
+    @computed_field
+    @property
+    def news_languages(self) -> List[str]:
+        return _parse_list(self.news_languages_raw)
 
     # Rate Limits (requests per minute)
     rate_limit_newsapi: int = Field(default=100, env="RATE_LIMIT_NEWSAPI")
@@ -123,10 +149,15 @@ class Settings(BaseSettings):
     backtest_risk_per_trade: float = Field(default=0.02, env="BACKTEST_RISK_PER_TRADE")
 
     # CORS Configuration
-    cors_origins: List[str] = Field(
-        default=["http://localhost:3000", "http://localhost:8000"],
+    cors_origins_raw: str = Field(
+        default="http://localhost:3000,http://localhost:8000",
         env="CORS_ORIGINS"
     )
+
+    @computed_field
+    @property
+    def cors_origins(self) -> List[str]:
+        return _parse_list(self.cors_origins_raw)
 
     # JWT Configuration
     jwt_secret_key: str = Field(
@@ -141,6 +172,16 @@ class Settings(BaseSettings):
         env_file_encoding = "utf-8"
         case_sensitive = False
 
+
+def _parse_list(val: str) -> List[str]:
+    if not val:
+        return []
+    if val.startswith('[') and val.endswith(']'):
+        try:
+            return json.loads(val)
+        except json.JSONDecodeError:
+            pass
+    return [x.strip() for x in val.split(',')]
 
 # Global settings instance
 settings = Settings()
