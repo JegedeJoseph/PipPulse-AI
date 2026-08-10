@@ -1,4 +1,4 @@
-﻿from motor.motor_asyncio import AsyncIOMotorClient as AsyncMongoClient, AsyncIOMotorDatabase as AsyncMongoDB
+from motor.motor_asyncio import AsyncIOMotorClient as AsyncMongoClient, AsyncIOMotorDatabase as AsyncMongoDB
 import redis.asyncio as aioredis
 from influxdb_client import InfluxDBClient
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
@@ -93,3 +93,20 @@ async def get_postgres_session():
         await init_databases()
     async with postgres_session_local() as session:
         yield session
+
+def get_influxdb_client():
+    global influxdb_client
+    return influxdb_client
+
+def get_influxdb_query_api():
+    global influxdb_client
+    if influxdb_client:
+        return influxdb_client.query_api()
+    return None
+
+def get_influxdb_write_api():
+    global influxdb_client
+    if influxdb_client:
+        from influxdb_client.client.write_api import SYNCHRONOUS
+        return influxdb_client.write_api(write_options=SYNCHRONOUS)
+    return None
