@@ -21,5 +21,5 @@ telethon==1.33.1
 
 torch==2.1.0 --index-url https://download.pytorch.org/whl/cpu
 torchvision==0.16.0 --index-url https://download.pytorch.org/whl/cpu
-torchaudio==0.16.0 --index-url https://download.pytorch.org/whl/cpu
+torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cpu
 transformers>=4.30.0
