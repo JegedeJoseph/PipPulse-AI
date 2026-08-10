@@ -3,10 +3,20 @@ FastAPI Main Application
 Main entry point for the PipPulse AI backend API
 """
 
+from datetime import datetime
+import logging
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.database import init_databases, close_databases
+from app.config import get_settings
+
+logger = logging.getLogger(__name__)
+settings = get_settings()
+
+# Defer heavy router imports until after settings are loaded
 from app.api import health, signals, news, admin, backtesting, websocket
 
 @asynccontextmanager
@@ -24,10 +34,10 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS configuration
+# CORS configuration — read from settings so the env var is honoured
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:8000"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

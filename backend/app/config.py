@@ -23,6 +23,8 @@ class Settings(BaseSettings):
         env="MONGODB_URI"
     )
     mongodb_database: str = Field(default="pippulse", env="MONGO_DATABASE")
+    mongodb_client_id: Optional[str] = Field(default=None, env="MONGODB_CLIENT_ID")
+    mongodb_client_secret: Optional[str] = Field(default=None, env="MONGODB_CLIENT_SECRET")
 
     # Redis Configuration
     redis_uri: str = Field(default="redis://localhost:6379/0", env="REDIS_URI")
