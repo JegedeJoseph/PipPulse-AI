@@ -2,10 +2,6 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Use a pre-built image with torch CPU
-# Or copy pre-downloaded wheels
-COPY --from=pytorch/pytorch:2.1.0-cpu /opt/conda/lib/python3.11/site-packages/torch* /usr/local/lib/python3.11/site-packages/
-
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
