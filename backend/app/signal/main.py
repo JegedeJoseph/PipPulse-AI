@@ -16,11 +16,9 @@ from app.signal import SignalGenerator, SignalAggregator
 from app.database import (
     connect_mongodb,
     connect_redis,
-    connect_influxdb,
     connect_postgres,
     disconnect_mongodb,
     disconnect_redis,
-    disconnect_influxdb,
     disconnect_postgres,
     get_mongodb,
     get_redis,
@@ -28,7 +26,7 @@ from app.database import (
 )
 from app.config import get_settings
 from app.services.config_service import get_system_config
-from influxdb_client import Point
+from tinyflux import Point
 
 # Configure logging
 logging.basicConfig(
@@ -58,7 +56,7 @@ class SignalEngineRunner:
 
         await connect_mongodb()
         await connect_redis()
-        await connect_influxdb()
+        # TinyFlux is file-based, no explicit connection needed
         await connect_postgres()
 
         # Initialize sentiment service
@@ -392,26 +390,26 @@ class SignalEngineRunner:
                         upsert=True
                     )
 
-                    # Write to InfluxDB
+                    # Write to TinyFlux
                     write_api = get_influxdb_write_api()
                     if write_api:
-                        point = (
-                            Point("signals")
-                            .tag("currency_pair", signal.currency_pair)
-                            .tag("time_window", signal.time_window)
-                            .tag("direction", signal.direction.value)
-                            .field("strength", float(signal.strength))
-                            .field("confidence", float(signal.confidence))
-                            .field("sentiment_score", float(signal.sentiment_score))
-                            .field("volume", int(signal.volume))
-                            .field("consensus_factor", float(signal.consensus_factor))
-                            .time(signal.timestamp)
+                        point = Point(
+                            time=signal.timestamp,
+                            measurement="signals",
+                            tags={
+                                "currency_pair": signal.currency_pair,
+                                "time_window": signal.time_window,
+                                "direction": signal.direction.value
+                            },
+                            fields={
+                                "strength": float(signal.strength),
+                                "confidence": float(signal.confidence),
+                                "sentiment_score": float(signal.sentiment_score),
+                                "volume": int(signal.volume),
+                                "consensus_factor": float(signal.consensus_factor)
+                            }
                         )
-                        write_api.write(
-                            bucket=self.settings.influxdb_bucket,
-                            org=self.settings.influxdb_org,
-                            record=point
-                        )
+                        write_api.insert(point)
 
                     # Publish to realtime channel
                     redis = get_redis()
@@ -458,7 +456,7 @@ class SignalEngineRunner:
             self.running = False
             await disconnect_mongodb()
             await disconnect_redis()
-            await disconnect_influxdb()
+            # TinyFlux is file-based, no explicit disconnection needed
             await disconnect_postgres()
 
     def stop(self):

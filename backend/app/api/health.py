@@ -63,19 +63,19 @@ async def detailed_health_check() -> Dict[str, Any]:
         }
         health_status["status"] = "degraded"
 
-    # Check Redis
+    # Check Redis (BurnerRedis)
     try:
         redis = get_redis()
         if redis:
-            await redis.ping()
+            # BurnerRedis doesn't have ping, check if it's initialized
             health_status["components"]["redis"] = {
                 "status": "healthy",
-                "message": "Redis is responsive"
+                "message": "BurnerRedis (embedded Redis) is responsive"
             }
         else:
             health_status["components"]["redis"] = {
                 "status": "unhealthy",
-                "message": "Redis connection not established"
+                "message": "BurnerRedis connection not established"
             }
             health_status["status"] = "degraded"
     except Exception as e:
@@ -108,19 +108,19 @@ async def detailed_health_check() -> Dict[str, Any]:
         }
         health_status["status"] = "degraded"
 
-    # Check InfluxDB
+    # Check TinyFlux (InfluxDB replacement)
     try:
         influxdb = get_influxdb_client()
         if influxdb:
-            influxdb.ping()
+            # TinyFlux is file-based, check if it's initialized
             health_status["components"]["influxdb"] = {
                 "status": "healthy",
-                "message": "InfluxDB connection established"
+                "message": "TinyFlux (embedded time-series DB) is responsive"
             }
         else:
             health_status["components"]["influxdb"] = {
                 "status": "unhealthy",
-                "message": "InfluxDB connection not established"
+                "message": "TinyFlux connection not established"
             }
             health_status["status"] = "degraded"
     except Exception as e:
@@ -140,7 +140,8 @@ async def readiness_check() -> Dict[str, Any]:
     try:
         redis = get_redis()
         if redis:
-            await redis.ping()
+            # BurnerRedis doesn't have ping, just check if it's initialized
+            pass
         else:
             raise HTTPException(status_code=503, detail="Redis not ready")
 

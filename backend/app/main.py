@@ -5,9 +5,19 @@ Main entry point for the PipPulse AI backend API
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
+from datetime import datetime
+import logging
+
 from app.database import init_databases, close_databases
 from app.api import health, signals, news, admin, backtesting, websocket
+from app.config import get_settings
+from app.auth import jwt_verification_middleware
+
+# Configure logger
+logger = logging.getLogger(__name__)
+settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -24,7 +34,11 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS configuration
+# Add JWT authentication middleware AFTER creating app but BEFORE other middleware
+# This ensures JWT checks happen before CORS allows requests
+app.middleware("http")(jwt_verification_middleware)
+
+# CORS configuration (added after JWT to not interfere with token verification)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://localhost:8000"],

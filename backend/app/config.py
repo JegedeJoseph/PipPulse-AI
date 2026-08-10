@@ -23,9 +23,10 @@ class Settings(BaseSettings):
     )
     mongodb_database: str = Field(default="pippulse", env="MONGO_DATABASE")
 
-    # Redis Configuration
+    # Redis Configuration (BurnerRedis - embedded replacement)
     redis_uri: str = Field(default="redis://localhost:6379/0", env="REDIS_URI")
     redis_stream_key: str = Field(default="news_stream", env="REDIS_STREAM_KEY")
+    redis_persistence_path: str = Field(default="redis_data.dat", env="REDIS_PERSISTENCE_PATH")
 
     # PostgreSQL Configuration
     postgres_uri: str = Field(
@@ -34,15 +35,9 @@ class Settings(BaseSettings):
     )
     postgres_db: str = Field(default="pippulse", env="POSTGRES_DB")
 
-    # InfluxDB Configuration
-    influxdb_url: str = Field(default="http://localhost:8086", env="INFLUXDB_URL")
-    influxdb_token: str = Field(
-        default="pippulse-super-secret-token-change-in-production",
-        env="INFLUXDB_TOKEN"
-    )
-    influxdb_org: str = Field(default="pippulse", env="INFLUXDB_ORG")
-    influxdb_bucket: str = Field(default="signals", env="INFLUXDB_BUCKET")
-    influxdb_price_bucket: str = Field(default="forex_prices", env="INFLUXDB_PRICE_BUCKET")
+    # TinyFlux Configuration (embedded time-series database replacement)
+    tinyflux_signals_path: str = Field(default="tinyflux_signals.csv", env="TINYFLUX_SIGNALS_PATH")
+    tinyflux_prices_path: str = Field(default="tinyflux_prices.csv", env="TINYFLUX_PRICES_PATH")
 
     # API Keys
     newsapi_key: Optional[str] = Field(default=None, env="NEWSAPI_KEY")
@@ -130,7 +125,7 @@ class Settings(BaseSettings):
 
     # JWT Configuration
     jwt_secret_key: str = Field(
-        default="pippulse-jwt-secret-key-change-in-production",
+        default="",
         env="JWT_SECRET_KEY"
     )
     jwt_algorithm: str = Field(default="HS256", env="JWT_ALGORITHM")

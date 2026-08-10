@@ -3,11 +3,12 @@
 ## Table of Contents
 1. [Prerequisites](#prerequisites)
 2. [Local Development Setup](#local-development-setup)
-3. [Docker Compose Deployment](#docker-compose-deployment)
-4. [Production Deployment](#production-deployment)
-5. [Monitoring & Observability](#monitoring--observability)
-6. [Troubleshooting](#troubleshooting)
-7. [Performance Tuning](#performance-tuning)
+3. [Secrets Management](#secrets-management)
+4. [Docker Compose Deployment](#docker-compose-deployment)
+5. [Production Deployment](#production-deployment)
+6. [Monitoring & Observability](#monitoring--observability)
+7. [Troubleshooting](#troubleshooting)
+8. [Performance Tuning](#performance-tuning)
 
 ## Prerequisites
 
@@ -99,6 +100,125 @@ npm install
 docker-compose up -d
 
 # Wait for services to be healthy
+docker-compose ps
+```
+
+## Secrets Management
+
+### Overview
+Proper secrets management is critical for security. PipPulse-AI uses environment variables for all sensitive data and should **NEVER** have hardcoded credentials in code or configuration files.
+
+### Security Best Practices
+
+**DO:**
+- ✅ Store secrets in environment variables
+- ✅ Use `.env` file locally (add to `.gitignore`)
+- ✅ Rotate secrets regularly
+- ✅ Use strong passwords (minimum 16 characters)
+- ✅ Use managed secrets services in production
+- ✅ Audit access to sensitive data
+- ✅ Use different secrets per environment
+
+**DON'T:**
+- ❌ Commit `.env` files to version control
+- ❌ Hardcode passwords in code
+- ❌ Use default credentials in production
+- ❌ Share secrets via email or chat
+- ❌ Use simple/weak passwords
+- ❌ Store secrets in comments or documentation
+
+### Local Development
+For local development, use `.env` file with development credentials:
+
+```bash
+# Copy example file
+cp .env.example .env
+
+# Edit with development passwords (NOT production!)
+nano .env
+```
+
+**Important:** The `.env` file is git-ignored and never committed.
+
+### Staging Environment
+For staging (test deployments):
+
+```bash
+# Option 1: AWS Secrets Manager
+aws secretsmanager get-secret-value --secret-id pippulse/staging/secrets
+
+# Option 2: Environment variables in CI/CD
+# Set in GitHub Actions, GitLab CI, or similar
+
+# Option 3: Docker secrets (Docker Swarm)
+docker secret create pippulse_db_password db_password.txt
+```
+
+### Production Environment
+**Mandatory: Use AWS Secrets Manager or equivalent**
+
+```bash
+# Create secrets in AWS Secrets Manager
+aws secretsmanager create-secret \
+  --name pippulse/prod/mongodb-password \
+  --secret-string "your-secure-password"
+
+# Retrieve in application
+SECRET=$(aws secretsmanager get-secret-value \
+  --secret-id pippulse/prod/mongodb-password \
+  --query 'SecretString' \
+  --output text)
+
+# Set as environment variable
+export MONGO_PASSWORD=$SECRET
+```
+
+### Secrets to Manage
+
+| Secret | Used By | Environment | Min Length |
+|--------|---------|-------------|-----------|
+| MONGO_PASSWORD | MongoDB | All | 16 chars |
+| POSTGRES_PASSWORD | PostgreSQL | All | 16 chars |
+| INFLUXDB_TOKEN | InfluxDB | All | 32 chars |
+| JWT_SECRET_KEY | API Auth | All | 32 chars |
+| NEWSAPI_KEY | News API | Prod only | - |
+| ALPHAVANTAGE_API_KEY | Price Data | Prod only | - |
+| TWITTER_BEARER_TOKEN | Twitter API | Prod only | - |
+
+### Rotation Schedule
+- **Dev passwords**: Change monthly or when developer leaves
+- **Staging passwords**: Change weekly
+- **Production passwords**: Change monthly (zero-downtime rotation recommended)
+- **API keys**: Rotate quarterly or if compromised
+
+### Monitoring & Auditing
+```bash
+# Check which services are using secrets
+docker-compose ps
+
+# View secret usage in logs (be careful!)
+docker-compose logs backend | grep -i password  # CAUTION: may expose secrets
+
+# Audit CloudTrail for AWS Secrets Manager access (AWS only)
+aws cloudtrail lookup-events --lookup-attributes AttributeKey=ResourceName,AttributeValue=pippulse
+```
+
+### Emergency Rotation
+If a secret is compromised:
+
+```bash
+# 1. Generate new secret
+NEW_SECRET=$(openssl rand -base64 32)
+
+# 2. Update in AWS Secrets Manager
+aws secretsmanager update-secret \
+  --secret-id pippulse/prod/mongodb-password \
+  --secret-string "$NEW_SECRET"
+
+# 3. Restart affected services
+docker-compose restart backend signal-engine collector
+
+# 4. Verify services are running
 docker-compose ps
 ```
 
