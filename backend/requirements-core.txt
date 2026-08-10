@@ -7,7 +7,9 @@ python-multipart==0.0.27
 
 # Databases
 motor==3.5.1
-pymongo==4.8.0
+pymongo[srv]==4.8.0
+certifi>=2023.7.22
+dnspython>=2.4.0
 redis==5.0.1
 asyncpg==0.29.0
 sqlalchemy==2.0.25

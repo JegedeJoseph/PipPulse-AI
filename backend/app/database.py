@@ -14,8 +14,15 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.orm import declarative_base
 import os
 import logging
-from typing import Optional
+import ssl as _ssl
+from typing import Optional, Tuple
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+
+try:
+    import certifi
+    CERTIFI_CA = certifi.where()
+except ImportError:
+    CERTIFI_CA = None
 
 logger = logging.getLogger(__name__)
 
@@ -98,24 +105,44 @@ def _build_mongo_client(uri: str) -> AsyncMongoClient:
                     return OIDCCallbackResult(access_token=token)
 
             logger.info("Using OIDC Service Account callback for MongoDB authentication")
-            return AsyncMongoClient(
-                clean_uri,
-                authMechanism="MONGODB-OIDC",
-                authMechanismProperties={"OIDC_CALLBACK": AtlasServiceAccountCallback()},
-            )
+            kwargs = {
+                "authMechanism": "MONGODB-OIDC",
+                "authMechanismProperties": {"OIDC_CALLBACK": AtlasServiceAccountCallback()},
+            }
+            if CERTIFI_CA:
+                kwargs["tlsCAFile"] = CERTIFI_CA
+            return AsyncMongoClient(clean_uri, **kwargs)
 
     # Default — no special OIDC handling needed
+    if CERTIFI_CA:
+        return AsyncMongoClient(uri, tlsCAFile=CERTIFI_CA)
     return AsyncMongoClient(uri)
 
 
-def _fix_postgres_uri(uri: str) -> str:
+def _fix_postgres_uri(uri: str) -> Tuple[str, bool]:
     """
-    Ensure the PostgreSQL URI uses the asyncpg dialect.
-    Converts 'postgresql://' to 'postgresql+asyncpg://'.
+    Ensure the PostgreSQL URI uses the asyncpg dialect and handle sslmode.
+
+    asyncpg does not accept 'sslmode' as a query parameter — it uses the
+    'ssl' connect_arg instead. This function strips sslmode from the URI
+    and returns a boolean indicating whether SSL should be enabled.
     """
+    use_ssl = False
+
+    # Switch to asyncpg dialect
     if uri.startswith("postgresql://") and "+asyncpg" not in uri:
         uri = uri.replace("postgresql://", "postgresql+asyncpg://", 1)
-    return uri
+
+    # Strip sslmode from query params (asyncpg doesn't understand it)
+    parsed = urlparse(uri)
+    qs = parse_qs(parsed.query, keep_blank_values=True)
+    if "sslmode" in qs:
+        sslmode = qs.pop("sslmode", ["disable"])[0]
+        if sslmode in ("require", "verify-ca", "verify-full", "prefer"):
+            use_ssl = True
+        uri = urlunparse(parsed._replace(query=urlencode(qs, doseq=True)))
+
+    return uri, use_ssl
 
 
 async def init_databases():
@@ -165,9 +192,20 @@ async def init_databases():
         "POSTGRES_URI",
         "postgresql+asyncpg://postgres:password@localhost:5432/pippulse",
     )
-    postgres_uri = _fix_postgres_uri(postgres_uri)
+    postgres_uri, pg_use_ssl = _fix_postgres_uri(postgres_uri)
     try:
-        postgres_engine = create_async_engine(postgres_uri, echo=False)
+        connect_args = {}
+        if pg_use_ssl:
+            # Create a permissive SSL context (Neon requires SSL but uses
+            # its own CA; "require" mode does not verify the server cert).
+            ssl_ctx = _ssl.create_default_context()
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = _ssl.CERT_NONE
+            connect_args["ssl"] = ssl_ctx
+
+        postgres_engine = create_async_engine(
+            postgres_uri, echo=False, connect_args=connect_args
+        )
         postgres_session_local = async_sessionmaker(
             postgres_engine, class_=AsyncSession, expire_on_commit=False
         )
