@@ -108,15 +108,18 @@ def _build_mongo_client(uri: str) -> AsyncMongoClient:
             kwargs = {
                 "authMechanism": "MONGODB-OIDC",
                 "authMechanismProperties": {"OIDC_CALLBACK": AtlasServiceAccountCallback()},
+                "serverSelectionTimeoutMS": 5000,
+                "connectTimeoutMS": 5000,
             }
             if CERTIFI_CA:
                 kwargs["tlsCAFile"] = CERTIFI_CA
             return AsyncMongoClient(clean_uri, **kwargs)
 
     # Default — no special OIDC handling needed
+    kwargs = {"serverSelectionTimeoutMS": 5000, "connectTimeoutMS": 5000}
     if CERTIFI_CA:
-        return AsyncMongoClient(uri, tlsCAFile=CERTIFI_CA)
-    return AsyncMongoClient(uri)
+        kwargs["tlsCAFile"] = CERTIFI_CA
+    return AsyncMongoClient(uri, **kwargs)
 
 
 def _fix_postgres_uri(uri: str) -> Tuple[str, bool]:
@@ -152,11 +155,12 @@ async def init_databases():
     # ---- MongoDB ----
     mongodb_uri = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
     try:
+        import asyncio
         mongodb_client = _build_mongo_client(mongodb_uri)
         db_name = os.getenv("MONGODB_DB", "pippulse")
         mongodb = mongodb_client.get_database(db_name)
-        # Quick connectivity check
-        await mongodb.command("ping")
+        # Quick connectivity check with a tight timeout
+        await asyncio.wait_for(mongodb.command("ping"), timeout=10)
         logger.info("MongoDB connected successfully")
     except Exception as exc:
         logger.warning(f"MongoDB connection failed — running without MongoDB: {exc}")
