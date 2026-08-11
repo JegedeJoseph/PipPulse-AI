@@ -223,3 +223,56 @@ def get_influxdb_write_api():
         from influxdb_client.client.write_api import SYNCHRONOUS
         return influxdb_client.write_api(write_options=SYNCHRONOUS)
     return None
+
+
+# ---- Compatibility wrappers for old connection interface ----
+
+async def connect_mongodb():
+    """Compatibility wrapper to connect to MongoDB"""
+    await init_databases()
+
+
+async def connect_redis():
+    """Compatibility wrapper to connect to Redis"""
+    await init_databases()
+
+
+async def connect_influxdb():
+    """Compatibility wrapper to connect to InfluxDB"""
+    await init_databases()
+
+
+async def connect_postgres():
+    """Compatibility wrapper to connect to PostgreSQL"""
+    await init_databases()
+
+
+async def disconnect_mongodb():
+    """Compatibility wrapper to disconnect from MongoDB"""
+    await close_databases()
+
+
+async def disconnect_redis():
+    """Compatibility wrapper to disconnect from Redis"""
+    await close_databases()
+
+
+async def disconnect_influxdb():
+    """Compatibility wrapper to disconnect from InfluxDB"""
+    await close_databases()
+
+
+async def disconnect_postgres():
+    """Compatibility wrapper to disconnect from PostgreSQL"""
+    await close_databases()
+
+
+async def connect_all_databases():
+    """Compatibility wrapper to connect to all databases"""
+    await init_databases()
+
+
+async def disconnect_all_databases():
+    """Compatibility wrapper to disconnect from all databases"""
+    await close_databases()
+
