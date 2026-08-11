@@ -34,10 +34,18 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS configuration — read from settings so the env var is honoured
+# CORS configuration — merge env-var origins with known frontend URLs
+_known_origins = [
+    "http://localhost:3000",
+    "http://localhost:8000",
+    "https://pip-pulse-ai-ten.vercel.app",
+]
+_all_origins = list(dict.fromkeys(settings.cors_origins + _known_origins))  # dedupe, preserve order
+logger.info("CORS allowed origins: %s", _all_origins)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=_all_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
