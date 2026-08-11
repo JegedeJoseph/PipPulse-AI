@@ -28,7 +28,7 @@ async def get_signals(
 ):
     """Get recent trading signals"""
     try:
-        mongodb = get_mongodb()
+        mongodb = await get_mongodb()
         if not mongodb:
             raise HTTPException(status_code=503, detail="Database not available")
 
@@ -77,7 +77,7 @@ async def get_latest_signals(
 ):
     """Get the latest signals for specified currency pairs"""
     try:
-        mongodb = get_mongodb()
+        mongodb = await get_mongodb()
         if not mongodb:
             raise HTTPException(status_code=503, detail="Database not available")
 
@@ -122,7 +122,7 @@ async def get_aggregated_signals(
 ):
     """Get aggregated signals across all time windows for a currency pair"""
     try:
-        mongodb = get_mongodb()
+        mongodb = await get_mongodb()
         if not mongodb:
             raise HTTPException(status_code=503, detail="Database not available")
 
@@ -182,7 +182,7 @@ async def get_signal_history(
 ):
     """Get historical signals for a currency pair"""
     try:
-        mongodb = get_mongodb()
+        mongodb = await get_mongodb()
         if not mongodb:
             raise HTTPException(status_code=503, detail="Database not available")
 
@@ -224,7 +224,7 @@ async def get_signal_history(
 async def get_available_pairs():
     """Get list of available currency pairs"""
     try:
-        mongodb = get_mongodb()
+        mongodb = await get_mongodb()
         if not mongodb:
             raise HTTPException(status_code=503, detail="Database not available")
 
