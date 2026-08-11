@@ -31,6 +31,14 @@ async def lifespan(app: FastAPI):
     # Startup
     await init_databases()
     
+    # Debug: Try importing torch directly to catch missing system libraries
+    try:
+        import torch
+        logger.info(f"PyTorch initialized successfully. Version: {torch.__version__}")
+    except Exception as e:
+        logger.error(f"CRITICAL: Failed to import PyTorch directly. Error: {e}", exc_info=True)
+
+    
     # Start background workers for single-process deployment (Render free tier)
     try:
         # Collector
