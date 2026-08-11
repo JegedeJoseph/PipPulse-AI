@@ -456,10 +456,6 @@ class SignalEngineRunner:
             logger.error(f"Error in signal engine: {e}")
         finally:
             self.running = False
-            await disconnect_mongodb()
-            await disconnect_redis()
-            await disconnect_influxdb()
-            await disconnect_postgres()
 
     def stop(self):
         """Stop the signal engine"""
@@ -483,6 +479,11 @@ async def main():
     except KeyboardInterrupt:
         logger.info("Received interrupt signal, shutting down...")
         engine.stop()
+    finally:
+        await disconnect_mongodb()
+        await disconnect_redis()
+        await disconnect_influxdb()
+        await disconnect_postgres()
 
 
 if __name__ == "__main__":

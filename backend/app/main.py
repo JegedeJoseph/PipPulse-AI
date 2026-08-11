@@ -19,12 +19,44 @@ settings = get_settings()
 # Defer heavy router imports until after settings are loaded
 from app.api import health, signals, news, admin, backtesting, websocket
 
+from app.collectors.main import CollectorRunner
+from app.signal.main import SignalEngineRunner
+import asyncio
+
+# Background tasks reference
+_background_tasks = []
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     await init_databases()
+    
+    # Start background workers for single-process deployment (Render free tier)
+    try:
+        # Collector
+        collector = CollectorRunner()
+        collector.initialize_collectors()
+        collector_task = asyncio.create_task(collector.run_continuous(interval_minutes=5))
+        _background_tasks.append((collector, collector_task))
+        
+        # Signal Engine
+        signal_engine = SignalEngineRunner()
+        await signal_engine.initialize()
+        signal_task = asyncio.create_task(signal_engine.run())
+        _background_tasks.append((signal_engine, signal_task))
+        
+        logger.info("Background workers started successfully inside FastAPI")
+    except Exception as e:
+        logger.error(f"Failed to start background workers: {e}")
+        
     yield
+    
     # Shutdown
+    logger.info("Shutting down background workers...")
+    for worker, task in _background_tasks:
+        worker.stop()
+        task.cancel()
+        
     await close_databases()
 
 app = FastAPI(
