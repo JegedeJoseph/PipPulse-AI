@@ -176,24 +176,18 @@ async def close_databases():
 
 # ---- Dependency helpers ----
 
-async def get_mongodb():
+def get_mongodb():
     global mongodb
-    if mongodb is None:
-        await init_databases()
     return mongodb
 
 
-async def get_redis():
+def get_redis():
     global redis_client
-    if redis_client is None:
-        await init_databases()
     return redis_client
 
 
-async def get_influxdb():
+def get_influxdb():
     global influxdb_client
-    if influxdb_client is None:
-        await init_databases()
     return influxdb_client
 
 
