@@ -216,8 +216,8 @@ class ConnectionManager:
 manager = ConnectionManager()
 
 
-@router.websocket("/")
-async def websocket_endpoint(websocket: WebSocket):
+@router.websocket("")
+async def websocket_endpoint(websocket: WebSocket, client_id: str = None):
     """Main WebSocket endpoint"""
     try:
         await manager.connect(websocket)

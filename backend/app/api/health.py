@@ -21,7 +21,7 @@ from app.api.websocket import manager as ws_manager
 router = APIRouter()
 
 
-@router.get("/")
+@router.get("")
 async def health_check() -> Dict[str, Any]:
     """Basic health check"""
     return {

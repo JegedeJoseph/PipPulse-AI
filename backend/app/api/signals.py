@@ -19,7 +19,7 @@ from app.database import get_mongodb, get_influxdb
 router = APIRouter()
 
 
-@router.get("/", response_model=List[SignalResponse])
+@router.get("", response_model=List[SignalResponse])
 async def get_signals(
     currency_pair: Optional[str] = Query(None, description="Filter by currency pair"),
     direction: Optional[SignalDirection] = Query(None, description="Filter by direction"),

@@ -18,7 +18,7 @@ from app.database import get_mongodb
 router = APIRouter()
 
 
-@router.get("/", response_model=List[NewsItemResponse])
+@router.get("", response_model=List[NewsItemResponse])
 async def get_news(
     source: Optional[SourceType] = Query(None, description="Filter by source"),
     currency_pair: Optional[str] = Query(None, description="Filter by currency pair"),
