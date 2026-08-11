@@ -44,7 +44,7 @@ async def detailed_health_check() -> Dict[str, Any]:
     # Check MongoDB
     try:
         mongodb = await get_mongodb()
-        if mongodb:
+        if mongodb is not None:
             await mongodb.command("ping")
             health_status["components"]["mongodb"] = {
                 "status": "healthy",
@@ -66,7 +66,7 @@ async def detailed_health_check() -> Dict[str, Any]:
     # Check Redis
     try:
         redis = await get_redis()
-        if redis:
+        if redis is not None:
             await redis.ping()
             health_status["components"]["redis"] = {
                 "status": "healthy",
@@ -139,13 +139,13 @@ async def readiness_check() -> Dict[str, Any]:
     # Check if all critical components are ready
     try:
         redis = await get_redis()
-        if redis:
+        if redis is not None:
             await redis.ping()
         else:
             raise HTTPException(status_code=503, detail="Redis not ready")
 
         mongodb = await get_mongodb()
-        if mongodb:
+        if mongodb is not None:
             await mongodb.command("ping")
         else:
             raise HTTPException(status_code=503, detail="MongoDB not ready")

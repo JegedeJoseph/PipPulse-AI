@@ -29,7 +29,7 @@ async def get_news(
     """Get recent news items"""
     try:
         mongodb = await get_mongodb()
-        if not mongodb:
+        if mongodb is None:
             raise HTTPException(status_code=503, detail="Database not available")
 
         # Build query
@@ -92,7 +92,7 @@ async def get_latest_news(
     """Get the latest news items"""
     try:
         mongodb = await get_mongodb()
-        if not mongodb:
+        if mongodb is None:
             raise HTTPException(status_code=503, detail="Database not available")
 
         # Get latest news
@@ -129,7 +129,7 @@ async def get_sentiment_trend(
     """Get sentiment trend for a currency pair"""
     try:
         mongodb = await get_mongodb()
-        if not mongodb:
+        if mongodb is None:
             raise HTTPException(status_code=503, detail="Database not available")
 
         # Calculate start time
@@ -212,7 +212,7 @@ async def get_news_sources():
     """Get available news sources"""
     try:
         mongodb = await get_mongodb()
-        if not mongodb:
+        if mongodb is None:
             raise HTTPException(status_code=503, detail="Database not available")
 
         # Get distinct sources
@@ -241,7 +241,7 @@ async def search_news(
     """Search news items"""
     try:
         mongodb = await get_mongodb()
-        if not mongodb:
+        if mongodb is None:
             raise HTTPException(status_code=503, detail="Database not available")
 
         # Text search
