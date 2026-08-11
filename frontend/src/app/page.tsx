@@ -10,9 +10,8 @@ import { useNews } from '@/hooks/useNews';
 import { Activity, TrendingUp, TrendingDown, BarChart3 } from 'lucide-react';
 
 export default function DashboardPage() {
-  const [selectedPair, setSelectedPair] = useState<string>('EUR/USD');
-  const { signals, loading: signalsLoading } = useSignals(selectedPair);
-  const { news, loading: newsLoading } = useNews(selectedPair);
+  const { signals, isLoading: signalsLoading, selectedCurrencyPair: selectedPair } = useSignals();
+  const { news, isLoading: newsLoading } = useNews(selectedPair);
 
   const stats = {
     totalSignals: signals.length,
@@ -41,7 +40,7 @@ export default function DashboardPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Currency Pair Selector */}
         <div className="mb-8">
-          <CurrencyPairSelector selectedPair={selectedPair} onSelectPair={setSelectedPair} />
+          <CurrencyPairSelector />
         </div>
 
         {/* Stats Cards */}

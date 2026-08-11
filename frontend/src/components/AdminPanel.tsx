@@ -19,8 +19,8 @@ export function AdminPanel() {
     setLoading(true);
     try {
       const data = await api.getConfig();
-      setConfig(data);
-      setOriginalConfig(data);
+      setConfig(data as unknown as AdminConfig);
+      setOriginalConfig(data as unknown as AdminConfig);
       setHasChanges(false);
       toast.success('Configuration loaded');
     } catch (error: any) {
