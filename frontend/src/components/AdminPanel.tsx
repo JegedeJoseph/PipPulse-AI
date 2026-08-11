@@ -118,7 +118,7 @@ export function AdminPanel() {
     }
   };
 
-  const updateThreshold = (pair: string, field: keyof typeof config.signal_thresholds[string], value: number) => {
+  const updateThreshold = (pair: string, field: keyof AdminConfig['signal_thresholds'][string], value: number) => {
     if (!config) return;
     const updated = {
       ...config,

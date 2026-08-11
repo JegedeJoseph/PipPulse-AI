@@ -20,14 +20,15 @@ export default function BacktestingPage() {
   const handleRunBacktest = async () => {
     setLoading(true);
     try {
-      const response = await api.post('/backtesting/run', {
+      const result = await api.runBacktest({
         currency_pair: formData.currency_pair || undefined,
         start_date: formData.start_date,
         end_date: formData.end_date,
         initial_capital: parseFloat(formData.initial_capital.toString()),
         risk_per_trade: parseFloat(formData.risk_per_trade.toString())
       });
-      setResults(response.data.result);
+      // result might be wrapped in { result: ... } or just the result directly based on the backend
+      setResults((result as any).result || result);
       toast.success('Backtest completed successfully');
     } catch (error) {
       toast.error('Failed to run backtest');
@@ -39,8 +40,9 @@ export default function BacktestingPage() {
 
   const handleFetchHistory = async () => {
     try {
-      const response = await api.get('/backtesting/history');
-      setHistory(response.data.backtests);
+      const results = await api.getBacktestResults();
+      // results might be { backtests: ... } or just the array directly
+      setHistory((results as any).backtests || results);
     } catch (error) {
       toast.error('Failed to fetch backtest history');
       console.error(error);

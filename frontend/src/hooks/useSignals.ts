@@ -36,7 +36,7 @@ export function useSignals() {
         signalFilter === 'all' ? undefined : [selectedCurrencyPair],
         selectedTimeWindow
       );
-      setSignals(data);
+      setSignals(data as unknown as TradingSignal[]);
     } catch (err) {
       setError('Failed to fetch signals');
     } finally {
