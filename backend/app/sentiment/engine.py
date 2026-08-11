@@ -5,6 +5,12 @@ Financial sentiment classification using FinBERT model
 
 import asyncio
 import torch
+
+# FORCE transformers to recognize torch is available (bypasses broken pip metadata checks)
+import transformers.utils.import_utils
+transformers.utils.import_utils._torch_available = True
+transformers.utils.import_utils._is_torch = True
+
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 from dataclasses import dataclass
