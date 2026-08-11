@@ -116,6 +116,7 @@ services:
       dockerfile: Dockerfile
     container_name: pippulse-collector
     restart: unless-stopped
+    command: python -m app.collectors.main
     volumes:
       - ./backend:/app
       - /app/__pycache__
@@ -151,6 +152,7 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: pippulse-signal-engine
+    command: python -m app.signal.main
     environment:
       - PYTHONUNBUFFERED=1
       - ENVIRONMENT=production
