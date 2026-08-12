@@ -41,10 +41,10 @@ async def lifespan(app: FastAPI):
     
     # Start background workers for single-process deployment (Render free tier)
     try:
-        # Collector
+        # Collector (Run every 60 minutes to stay within NewsAPI 100/day limit)
         collector = CollectorRunner()
         collector.initialize_collectors()
-        collector_task = asyncio.create_task(collector.run_continuous(interval_minutes=5))
+        collector_task = asyncio.create_task(collector.run_continuous(interval_minutes=50))
         _background_tasks.append((collector, collector_task))
         
         # Signal Engine
