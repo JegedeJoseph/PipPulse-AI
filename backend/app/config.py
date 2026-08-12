@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     # Model Configuration
     finbert_model_name: str = Field(default="ProsusAI/finbert", env="FINBERT_MODEL_NAME")
     finbert_cache_dir: str = Field(default="./models/finbert", env="FINBERT_CACHE_DIR")
+    force_lexicon_sentiment: bool = Field(
+        default=os.getenv("RENDER") == "true",
+        env="FORCE_LEXICON_SENTIMENT"
+    )
 
     # Signal Generation Parameters
     signal_latency_target: int = Field(default=5, env="SIGNAL_LATENCY_TARGET")

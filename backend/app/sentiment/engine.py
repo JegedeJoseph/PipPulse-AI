@@ -85,6 +85,9 @@ class FinBERTModel:
     def _load_model(self):
         """Load the FinBERT model and tokenizer"""
         try:
+            if getattr(self.settings, 'force_lexicon_sentiment', False):
+                raise ImportError("Forced lexicon sentiment fallback enabled via settings.")
+
             if not TORCH_AVAILABLE:
                 raise ImportError("PyTorch library is not available in environment.")
 
