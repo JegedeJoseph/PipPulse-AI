@@ -11,16 +11,6 @@ try:
 except ImportError:
     TORCH_AVAILABLE = False
 
-# FORCE transformers to recognize torch is available (bypasses broken pip metadata checks)
-try:
-    import transformers.utils.import_utils
-    transformers.utils.import_utils._torch_available = True
-    transformers.utils.import_utils._is_torch = True
-    transformers.utils.import_utils.is_torch_available = lambda *args, **kwargs: True
-    transformers.utils.import_utils.requires_backends = lambda *args, **kwargs: None
-except Exception:
-    pass
-
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
 from dataclasses import dataclass
