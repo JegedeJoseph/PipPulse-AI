@@ -4,14 +4,22 @@ Financial sentiment classification using FinBERT model
 """
 
 import asyncio
-import torch
+
+try:
+    import torch
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
 
 # FORCE transformers to recognize torch is available (bypasses broken pip metadata checks)
-import transformers.utils.import_utils
-transformers.utils.import_utils._torch_available = True
-transformers.utils.import_utils._is_torch = True
-transformers.utils.import_utils.is_torch_available = lambda *args, **kwargs: True
-transformers.utils.import_utils.requires_backends = lambda *args, **kwargs: None
+try:
+    import transformers.utils.import_utils
+    transformers.utils.import_utils._torch_available = True
+    transformers.utils.import_utils._is_torch = True
+    transformers.utils.import_utils.is_torch_available = lambda *args, **kwargs: True
+    transformers.utils.import_utils.requires_backends = lambda *args, **kwargs: None
+except Exception:
+    pass
 
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime
@@ -33,6 +41,23 @@ from app.schemas import (
 from app.config import get_settings
 
 
+# Lexicon words for Forex sentiment analysis fallback
+POSITIVE_WORDS = {
+    "bullish", "strengthen", "rise", "gain", "growth", "rally", "hawkish", 
+    "upward", "positive", "high", "boost", "recover", "surge", "expansion", 
+    "profit", "strong", "higher", "climb", "improving", "improves", "improved",
+    "support", "gains", "rising", "hawkishness", "optimism", "optimistic"
+}
+
+NEGATIVE_WORDS = {
+    "bearish", "weaken", "fall", "drop", "loss", "decline", "slump", "dovish", 
+    "downward", "negative", "low", "drag", "slide", "contraction", "deficit", 
+    "risk", "weak", "lower", "slip", "worsening", "worsens", "worsened",
+    "pressure", "losses", "falling", "dovishness", "pessimism", "pessimistic",
+    "concern", "concerns", "feared", "fears", "cut", "cuts"
+}
+
+
 @dataclass
 class SentimentBatch:
     """Batch of items for sentiment analysis"""
@@ -51,20 +76,28 @@ class FinBERTModel:
         self.tokenizer = None
         self.model = None
         self.pipeline = None
+        self.fallback_mode = False
         self._load_model()
 
     def _get_device(self) -> str:
         """Get the best available device"""
-        if torch.cuda.is_available():
-            return "cuda"
-        elif torch.backends.mps.is_available():
-            return "mps"
-        else:
+        if not TORCH_AVAILABLE:
             return "cpu"
+        try:
+            if torch.cuda.is_available():
+                return "cuda"
+            elif torch.backends.mps.is_available():
+                return "mps"
+        except Exception:
+            pass
+        return "cpu"
 
     def _load_model(self):
         """Load the FinBERT model and tokenizer"""
         try:
+            if not TORCH_AVAILABLE:
+                raise ImportError("PyTorch library is not available in environment.")
+
             print(f"Loading FinBERT model: {self.model_name}")
             print(f"Using device: {self.device}")
 
@@ -88,14 +121,68 @@ class FinBERTModel:
 
         except Exception as e:
             print(f"Error loading FinBERT model: {e}")
-            raise
+            print("Falling back to Lexicon-based Sentiment Analyzer")
+            self.fallback_mode = True
+            self.tokenizer = None
+            self.model = None
+            self.pipeline = None
+
+    def _predict_fallback(self, text: str) -> Dict[str, Any]:
+        """Simple lexicon-based Forex sentiment fallback when PyTorch is not available"""
+        words = text.lower().split()
+        pos_count = sum(1 for w in words if w.strip(".,!?;:()\"'") in POSITIVE_WORDS)
+        neg_count = sum(1 for w in words if w.strip(".,!?;:()\"'") in NEGATIVE_WORDS)
+        
+        total = pos_count + neg_count
+        if total == 0:
+            return {
+                "label": "neutral",
+                "confidence": 0.8,
+                "probabilities": {"positive": 0.1, "negative": 0.1, "neutral": 0.8}
+            }
+        
+        pos_prob = pos_count / total
+        neg_prob = neg_count / total
+        
+        if pos_count > neg_count:
+            label = "positive"
+            confidence = 0.5 + (pos_prob * 0.45)
+            probabilities = {
+                "positive": confidence,
+                "negative": (1.0 - confidence) * 0.3,
+                "neutral": (1.0 - confidence) * 0.7
+            }
+        elif neg_count > pos_count:
+            label = "negative"
+            confidence = 0.5 + (neg_prob * 0.45)
+            probabilities = {
+                "negative": confidence,
+                "positive": (1.0 - confidence) * 0.3,
+                "neutral": (1.0 - confidence) * 0.7
+            }
+        else:
+            label = "neutral"
+            confidence = 0.7
+            probabilities = {
+                "neutral": 0.7,
+                "positive": 0.15,
+                "negative": 0.15
+            }
+            
+        return {
+            "label": label,
+            "confidence": confidence,
+            "probabilities": probabilities
+        }
 
     def predict(
         self,
         text: str,
         return_all_scores: bool = True
     ) -> Dict[str, Any]:
-        """Predict sentiment for a single text"""
+        """Predict sentiment for a text"""
+        if getattr(self, "fallback_mode", False):
+            return self._predict_fallback(text)
         try:
             # Truncate text if too long
             max_length = 512
@@ -140,6 +227,8 @@ class FinBERTModel:
         batch_size: int = 32
     ) -> List[Dict[str, Any]]:
         """Predict sentiment for a batch of texts"""
+        if getattr(self, "fallback_mode", False):
+            return [self._predict_fallback(t) for t in texts]
         results = []
 
         for i in range(0, len(texts), batch_size):
