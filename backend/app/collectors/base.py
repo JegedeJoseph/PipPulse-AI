@@ -39,24 +39,26 @@ class BaseCollector(ABC):
         return hashlib.sha256(hash_input.encode()).hexdigest()
 
     async def publish_to_stream(self, item: RawNewsItem) -> bool:
-        """Publish item to Redis stream"""
+        """Publish item to Redis stream or internal queue"""
         try:
+            payload = {
+                "source": item.source.value,
+                "source_id": item.source_id,
+                "content": item.content,
+                "title": item.title or "",
+                "author": item.author or "",
+                "url": str(item.url) if item.url else "",
+                "timestamp": item.timestamp.isoformat(),
+                "currency_pairs": json.dumps(item.currency_pairs),
+                "metadata": json.dumps(item.metadata),
+                "content_hash": item.content_hash or ""
+            }
             if self.redis:
-                await self.redis.xadd(
-                    self.stream_key,
-                    {
-                        "source": item.source.value,
-                        "source_id": item.source_id,
-                        "content": item.content,
-                        "title": item.title or "",
-                        "author": item.author or "",
-                        "url": str(item.url) if item.url else "",
-                        "timestamp": item.timestamp.isoformat(),
-                        "currency_pairs": json.dumps(item.currency_pairs),
-                        "metadata": json.dumps(item.metadata),
-                        "content_hash": item.content_hash or ""
-                    }
-                )
+                await self.redis.xadd(self.stream_key, payload)
+                return True
+            else:
+                from app.database import internal_stream_queue
+                await internal_stream_queue.put(payload)
                 return True
         except Exception as e:
             print(f"Error publishing to stream: {e}")
@@ -84,7 +86,7 @@ class BaseCollector(ABC):
                 return True
         except Exception as e:
             print(f"Error marking processed: {e}")
-        return False
+        return True
 
     def extract_currency_pairs(self, text: str) -> List[str]:
         """Extract currency pairs from text (basic implementation)"""

@@ -41,6 +41,10 @@ postgres_engine = None
 postgres_session_local: Optional[async_sessionmaker] = None
 Base = declarative_base()
 
+# In-memory fallback queue for single-process deployments without Redis
+import asyncio
+internal_stream_queue = asyncio.Queue()
+
 
 def _build_mongo_client(uri: str) -> AsyncMongoClient:
     """

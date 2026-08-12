@@ -109,50 +109,62 @@ class SignalEngineRunner:
             logger.error(f"Failed to refresh configuration: {e}")
 
     async def process_news_stream(self):
-        """Process news from Redis stream"""
+        """Process news from Redis stream or internal queue"""
         logger.info("Processing news stream...")
-
-        redis = get_redis()
-        if not redis:
-            logger.error("Redis not available")
-            return
 
         mongodb = get_mongodb()
         if not mongodb:
             logger.error("MongoDB not available")
             return
 
+        redis = get_redis()
         stream_key = self.settings.redis_stream_key
 
-        # Restore last processed ID if available
-        stored_id = await redis.get(f"{stream_key}:last_id")
-        if stored_id:
-            self.last_stream_id = stored_id
+        if redis:
+            # Restore last processed ID if available
+            stored_id = await redis.get(f"{stream_key}:last_id")
+            if stored_id:
+                self.last_stream_id = stored_id
 
         while self.running:
             try:
-                # Read from stream
-                messages = await redis.xread(
-                    {stream_key: self.last_stream_id},
-                    count=10,
-                    block=5000  # 5 second timeout
-                )
+                if redis:
+                    # Read from Redis stream
+                    messages = await redis.xread(
+                        {stream_key: self.last_stream_id},
+                        count=10,
+                        block=5000  # 5 second timeout
+                    )
 
-                if not messages:
-                    continue
+                    if not messages:
+                        continue
 
-                for stream, items in messages:
-                    for item_id, fields in items:
-                        try:
-                            # Process item
-                            await self.process_news_item(fields, mongodb)
-                            self.last_stream_id = item_id
-                            await redis.set(f"{stream_key}:last_id", item_id)
-                        except Exception as e:
-                            logger.error(f"Error processing news item: {e}")
+                    for stream, items in messages:
+                        for item_id, fields in items:
+                            try:
+                                # Process item
+                                await self.process_news_item(fields, mongodb)
+                                self.last_stream_id = item_id
+                                await redis.set(f"{stream_key}:last_id", item_id)
+                            except Exception as e:
+                                logger.error(f"Error processing news item: {e}")
+                else:
+                    # Read from internal queue
+                    from app.database import internal_stream_queue
+                    import asyncio
+                    try:
+                        # Wait for an item with a timeout so we can check self.running
+                        fields = await asyncio.wait_for(internal_stream_queue.get(), timeout=5.0)
+                        await self.process_news_item(fields, mongodb)
+                        internal_stream_queue.task_done()
+                    except asyncio.TimeoutError:
+                        continue
+                    except Exception as e:
+                        logger.error(f"Error processing internal queue item: {e}")
 
             except Exception as e:
                 logger.error(f"Error reading from stream: {e}")
+                import asyncio
                 await asyncio.sleep(5)
 
     async def process_news_item(self, fields: dict, mongodb):
@@ -270,24 +282,27 @@ class SignalEngineRunner:
 
             # Publish to realtime channel
             redis = get_redis()
-            if redis:
-                payload = {
-                    "source": processed_item.source.value,
-                    "title": processed_item.title,
-                    "content": processed_item.original_content,
-                    "url": str(processed_item.url) if processed_item.url else None,
-                    "timestamp": processed_item.timestamp.isoformat(),
-                    "currency_pairs": processed_item.currency_pairs,
-                    "sentiment": {
-                        "label": sentiment_result.label.value,
-                        "confidence": sentiment_result.confidence,
-                        "probabilities": sentiment_result.probabilities,
-                        "timestamp": sentiment_result.timestamp.isoformat(),
-                        "model_name": sentiment_result.model_name,
-                        "pair_sentiment": sentiment_result.pair_sentiment
-                    }
+            payload = {
+                "source": processed_item.source.value,
+                "title": processed_item.title,
+                "content": processed_item.original_content,
+                "url": str(processed_item.url) if processed_item.url else None,
+                "timestamp": processed_item.timestamp.isoformat(),
+                "currency_pairs": processed_item.currency_pairs,
+                "sentiment": {
+                    "label": sentiment_result.label.value,
+                    "confidence": sentiment_result.confidence,
+                    "probabilities": sentiment_result.probabilities,
+                    "timestamp": sentiment_result.timestamp.isoformat(),
+                    "model_name": sentiment_result.model_name,
+                    "pair_sentiment": sentiment_result.pair_sentiment
                 }
+            }
+            if redis:
                 await redis.publish("news", json.dumps(payload))
+            else:
+                from app.api.websocket import broadcast_news
+                await broadcast_news(payload)
 
         except Exception as e:
             logger.error(f"Error processing news item: {e}")
@@ -415,21 +430,24 @@ class SignalEngineRunner:
 
                     # Publish to realtime channel
                     redis = get_redis()
+                    payload = {
+                        "currency_pair": signal.currency_pair,
+                        "direction": signal.direction.value,
+                        "strength": signal.strength,
+                        "confidence": signal.confidence,
+                        "timestamp": signal.timestamp.isoformat(),
+                        "time_window": signal.time_window,
+                        "reasoning": signal.reasoning,
+                        "sentiment_score": signal.sentiment_score,
+                        "volume": signal.volume,
+                        "consensus_factor": signal.consensus_factor,
+                        "supporting_headlines": signal.supporting_headlines,
+                    }
                     if redis:
-                        payload = {
-                            "currency_pair": signal.currency_pair,
-                            "direction": signal.direction.value,
-                            "strength": signal.strength,
-                            "confidence": signal.confidence,
-                            "timestamp": signal.timestamp.isoformat(),
-                            "time_window": signal.time_window,
-                            "reasoning": signal.reasoning,
-                            "sentiment_score": signal.sentiment_score,
-                            "volume": signal.volume,
-                            "consensus_factor": signal.consensus_factor,
-                            "supporting_headlines": signal.supporting_headlines,
-                        }
                         await redis.publish("signals", json.dumps(payload))
+                    else:
+                        from app.api.websocket import broadcast_signal
+                        await broadcast_signal(payload)
 
                     logger.info(f"Generated signal: {signal.currency_pair} - {signal.direction.value} (strength: {signal.strength:.1f}, confidence: {signal.confidence:.1f})")
 
