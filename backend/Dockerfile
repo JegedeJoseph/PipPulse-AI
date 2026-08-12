@@ -22,8 +22,11 @@ RUN pip install --no-cache-dir --default-timeout=1000 -r requirements-ml.txt || 
 # Copy application code
 COPY app ./app
 
-# Download spaCy model directly to avoid 404 resolution errors
-RUN pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz
+# Download spaCy model with retries to handle transient 502 network errors
+RUN for i in 1 2 3 4 5; do \
+        pip install https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz && break || \
+        (echo "Retry $i failed, sleeping 15s..." && sleep 15); \
+    done
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 \
