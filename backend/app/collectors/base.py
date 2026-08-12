@@ -116,6 +116,12 @@ class BaseCollector(ABC):
             items = await self.collect()
             count = 0
 
+            # Fallback to mock data if API fails or returns no items
+            if not items and getattr(self.settings, 'use_mock_fallback', False):
+                print(f"Fallback to mock data for {self.source_type.value}")
+                from app.collectors.mock_data import generate_mock_news
+                items = generate_mock_news(self.source_type, count=6)
+
             for item in items:
                 # Generate content hash
                 item.content_hash = self.generate_content_hash(

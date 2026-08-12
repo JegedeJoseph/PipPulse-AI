@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     influxdb_price_bucket: str = Field(default="forex_prices", env="INFLUXDB_PRICE_BUCKET")
 
     # API Keys
+    use_mock_fallback: bool = Field(default=True, env="USE_MOCK_FALLBACK")
     newsapi_key: Optional[str] = Field(default=None, env="NEWSAPI_KEY")
     alphavantage_api_key: Optional[str] = Field(default=None, env="ALPHAVANTAGE_API_KEY")
 
